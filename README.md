@@ -1,5 +1,5 @@
-[![Build Status](https://travis-ci.org/state-machines/state_machines-audit-trail.svg?branch=master)](https://travis-ci.org/state-machines/state_machines-audit-trail)
-[![Code Climate](https://codeclimate.com/github/state-machines/state_machines-audit-trail.png)](https://codeclimate.com/github/state-machines/state_machines-audit-trail)
+[![Build Status](https://travis-ci.org/state-machines/state_machines-audit_trail.svg?branch=master)](https://travis-ci.org/state-machines/state_machines-audit_trail)
+[![Code Climate](https://codeclimate.com/github/state-machines/state_machines-audit_trail.png)](https://codeclimate.com/github/state-machines/state_machines-audit_trail)
 
 # state_machines-audit_trail
 **Conversion work in progress - to be transferred to the state_machines repositories**

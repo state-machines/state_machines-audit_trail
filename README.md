@@ -2,8 +2,6 @@
 [![Code Climate](https://codeclimate.com/github/state-machines/state_machines-audit_trail.png)](https://codeclimate.com/github/state-machines/state_machines-audit_trail)
 
 # state_machines-audit_trail
-**Conversion work in progress - to be transferred to the state_machines repositories**
-
 Log transitions on a [state_machines gem](https://github.com/state-machines/state_machines) to support auditing and business process analytics.
 
 

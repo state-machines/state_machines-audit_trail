@@ -6,6 +6,11 @@ ActiveRecord::Base.establish_connection(:adapter => 'sqlite3', :database => ':me
 class ARModelStateTransition < ActiveRecord::Base
   belongs_to :ar_model
 end
+
+class ARModelWithNamespaceFooStateTransition < ActiveRecord::Base
+  belongs_to :ar_model_with_namespace
+end
+
 class ARModelNoInitialStateTransition < ActiveRecord::Base
   belongs_to :ar_model_no_initial
 end
@@ -32,7 +37,7 @@ end
 
 class ARModel < ActiveRecord::Base
 
-  state_machine :state, initial: :waiting do # log initial state?
+  state_machine :state, initial: :waiting do
     audit_trail
 
     event :start do
@@ -47,7 +52,7 @@ end
 
 class ARModelNoInitial < ActiveRecord::Base
 
-  state_machine :state, initial: :waiting do # log initial state?
+  state_machine :state, initial: :waiting do
     audit_trail initial: false
 
     event :start do
@@ -59,9 +64,25 @@ class ARModelNoInitial < ActiveRecord::Base
     end
   end
 end
+
+class ARModelWithNamespace < ActiveRecord::Base
+
+  state_machine :foo_state, initial: :waiting, namespace: :foo do
+    audit_trail
+
+    event :start do
+      transition [:waiting, :stopped] => :started
+    end
+
+    event :stop do
+      transition :started => :stopped
+    end
+  end
+end
+
 #
 class ARModelWithContext < ActiveRecord::Base
-  state_machine :state, initial: :waiting do # log initial state?
+  state_machine :state, initial: :waiting do
     audit_trail context: :context
 
     event :start do
@@ -79,7 +100,7 @@ class ARModelWithContext < ActiveRecord::Base
 end
 
 class ARModelWithMultipleContext < ActiveRecord::Base
-  state_machine :state, initial: :waiting do # log initial state?
+  state_machine :state, initial: :waiting do
     audit_trail context: [:context, :second_context, :context_with_args]
 
     event :start do
@@ -150,14 +171,14 @@ class ARModelWithMultipleStateMachines < ActiveRecord::Base
   end
 end
 
-module SomeNamespace
+module SomeModule
   class ARModelStateTransition < ActiveRecord::Base
-    belongs_to :test_model
+    belongs_to :ar_model
   end
 
   class ARModel < ActiveRecord::Base
 
-    state_machine :state, initial: :waiting do # log initial state?
+    state_machine :state, initial: :waiting do
       audit_trail
 
       event :start do
@@ -174,9 +195,13 @@ end
 #
 # Generate tables
 #
-def create_model_table(owner_class, multiple_state_machines = false)
+def create_model_table(owner_class, multiple_state_machines = false, state_column = nil)
   ActiveRecord::Base.connection.create_table(owner_class.name.tableize) do |t|
-    t.string :state unless multiple_state_machines
+    if state_column.presence
+      t.string state_column
+    else
+      t.string :state unless multiple_state_machines
+    end
     t.string :type
 
     if multiple_state_machines
@@ -189,10 +214,12 @@ def create_model_table(owner_class, multiple_state_machines = false)
   end
 end
 
-create_model_table(ARModel)
-create_model_table(ARModelNoInitial)
-create_model_table(ARModelWithContext)
-create_model_table(ARModelWithMultipleContext)
+
+%w(ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext).each do |name|
+  create_model_table(name.constantize)
+end
+
+create_model_table(ARModelWithNamespace, false, :foo_state)
 create_model_table(ARModelWithMultipleStateMachines, true)
 
 
@@ -202,6 +229,7 @@ def create_transition_table(owner_class, state, add_context = false)
 
     # t.references :"#{owner_class.name.pluralize.demodulize.tableize}"
     t.integer owner_class.name.foreign_key
+    t.string :namespace
     t.string :event
     t.string :from
     t.string :to
@@ -213,8 +241,11 @@ def create_transition_table(owner_class, state, add_context = false)
   end
 end
 
-create_transition_table(ARModel, :state)
-create_transition_table(ARModelNoInitial, :state)
+%w(ARModel ARModelNoInitial).each do |name|
+  create_transition_table(name.constantize, :state)
+end
+
+create_transition_table(ARModelWithNamespace, :foo_state, false)
 create_transition_table(ARModelWithContext, :state, true)
 create_transition_table(ARModelWithMultipleContext, :state, true)
 create_transition_table(ARModelWithMultipleStateMachines, :first)

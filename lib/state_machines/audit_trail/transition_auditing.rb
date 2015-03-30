@@ -32,7 +32,7 @@ module StateMachines::AuditTrail::TransitionAuditing
         state_machine.owner_class.after_initialize do |object|
           current_state = object.send(state_machine.attribute)
           if !current_state.nil?
-            state_machine.backend.log(object, OpenStruct.new(to: current_state))
+            state_machine.backend.log(object, OpenStruct.new(namespace: state_machine.namespace, to: current_state))
           end
         end
       end

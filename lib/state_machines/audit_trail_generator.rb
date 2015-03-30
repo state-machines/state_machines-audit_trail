@@ -12,6 +12,7 @@ class StateMachines::AuditTrailGenerator < ::Rails::Generators::Base
   def create_model
     args = [transition_class_name,
             "#{source_model.demodulize.tableize.singularize}:references",
+            'namespace:string',
             'event:string',
             'from:string',
             'to:string',

@@ -1,30 +1,37 @@
 require 'mongoid'
 
 ### Setup test database
-
-Mongoid.configure do |config|
-  config.master = Mongo::Connection.new.db("sm_audit_trail")
-end
-
-
+Mongoid.load!(File.expand_path('../mongoid.yml', __FILE__), :test)
 
 # We probably want to provide a generator for this model and the accompanying migration.
 class MongoidTestModelStateTransition
   include Mongoid::Document
   include Mongoid::Timestamps
   belongs_to :mongoid_test_model
+
+  field :event, type: String
+  field :from,  type: String
+  field :to,    type: String
 end
 
 class MongoidTestModelWithMultipleStateMachinesFirstTransition
   include Mongoid::Document
   include Mongoid::Timestamps
   belongs_to :mongoid_test_model
+
+  field :event, type: String
+  field :from,  type: String
+  field :to,    type: String
 end
 
 class MongoidTestModelWithMultipleStateMachinesSecondTransition
   include Mongoid::Document
   include Mongoid::Timestamps
   belongs_to :mongoid_test_model
+
+  field :event, type: String
+  field :from,  type: String
+  field :to,    type: String
 end
 
 class MongoidTestModel
@@ -32,8 +39,8 @@ class MongoidTestModel
   include Mongoid::Document
   include Mongoid::Timestamps
   
-  state_machine :state, :initial => :waiting do # log initial state?
-    store_audit_trail :orm => :mongoid
+  state_machine :state, initial: :waiting do # log initial state?
+    audit_trail :orm => :mongoid
 
     event :start do
       transition [:waiting, :stopped] => :started
@@ -54,8 +61,8 @@ class MongoidTestModelWithMultipleStateMachines
   include Mongoid::Document
   include Mongoid::Timestamps
 
-  state_machine :first, :initial => :beginning do
-    store_audit_trail 
+  state_machine :first, initial: :beginning do
+    audit_trail
 
     event :begin_first do
       transition :beginning => :end
@@ -63,7 +70,7 @@ class MongoidTestModelWithMultipleStateMachines
   end
   
   state_machine :second do
-    store_audit_trail 
+    audit_trail
 
     event :begin_second do
       transition nil => :beginning_second

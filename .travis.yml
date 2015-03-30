@@ -1,12 +1,17 @@
 language: ruby
-script: bundle exec rake
+sudo: false
+cache: bundler
+
+script: "bundle exec rake"
+
 services: mongodb
 rvm:
-  - 1.9.3
+  - 2.1
   - 2.0.0
-  - 2.1.1
-  - ruby-head
+  - 2.2
+  - jruby
+  - rbx-2
 matrix:
   allow_failures:
-    - rvm: ruby-head
-sudo: false
+    - rvm: rbx-2
+    - rvm: jruby

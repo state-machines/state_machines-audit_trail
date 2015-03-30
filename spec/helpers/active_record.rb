@@ -1,62 +1,39 @@
 require 'active_record'
 
 ### Setup test database
-
 ActiveRecord::Base.establish_connection(:adapter => 'sqlite3', :database => ':memory:')
 
-ActiveRecord::Base.connection.create_table(:active_record_test_models) do |t|
-  t.string :state
-  t.string :type
-  t.timestamps
+class ARModelStateTransition < ActiveRecord::Base
+  belongs_to :ar_model
+end
+class ARModelNoInitialStateTransition < ActiveRecord::Base
+  belongs_to :ar_model_no_initial
 end
 
-ActiveRecord::Base.connection.create_table(:active_record_test_model_with_contexts) do |t|
-  t.string :state
-  t.string :type
-  t.timestamps
+class ARModelWithContextStateTransition < ActiveRecord::Base
+  belongs_to :ar_model_with_context
 end
 
-ActiveRecord::Base.connection.create_table(:active_record_test_model_with_multiple_contexts) do |t|
-  t.string :state
-  t.string :type
-  t.timestamps
+class ARModelWithMultipleContextStateTransition < ActiveRecord::Base
+  belongs_to :ar_model_with_multiple_context
 end
 
-ActiveRecord::Base.connection.create_table(:active_record_test_model_with_multiple_state_machines) do |t|
-  t.string :first
-  t.string :second
-  t.timestamps
+class ARModelWithMultipleStateMachinesFirstTransition < ActiveRecord::Base
+  belongs_to :ar_model_with_multiple_state_machines
 end
 
-# We probably want to provide a generator for this model and the accompanying migration.
-class ActiveRecordTestModelStateTransition < ActiveRecord::Base
-  belongs_to :test_model
+class ARModelWithMultipleStateMachinesSecondTransition < ActiveRecord::Base
+  belongs_to :ar_model_with_multiple_state_machines
 end
 
-class ActiveRecordTestModelWithContextStateTransition < ActiveRecord::Base
-  belongs_to :test_model
+class ARModelWithMultipleStateMachinesThirdTransition < ActiveRecord::Base
+  belongs_to :ar_model_with_multiple_state_machines
 end
 
-class ActiveRecordTestModelWithMultipleContextStateTransition < ActiveRecord::Base
-  belongs_to :test_model
-end
+class ARModel < ActiveRecord::Base
 
-class ActiveRecordTestModelWithMultipleStateMachinesFirstTransition < ActiveRecord::Base
-  belongs_to :test_model
-end
-
-class ActiveRecordTestModelWithMultipleStateMachinesSecondTransition < ActiveRecord::Base
-  belongs_to :test_model
-end
-
-class ActiveRecordTestModelWithMultipleStateMachinesThirdTransition < ActiveRecord::Base
-  belongs_to :test_model
-end
-
-class ActiveRecordTestModel < ActiveRecord::Base
-
-  state_machine :state, :initial => :waiting do # log initial state?
-    store_audit_trail
+  state_machine :state, initial: :waiting do # log initial state?
+    audit_trail
 
     event :start do
       transition [:waiting, :stopped] => :started
@@ -68,9 +45,10 @@ class ActiveRecordTestModel < ActiveRecord::Base
   end
 end
 
-class ActiveRecordTestModelWithContext < ActiveRecord::Base
-  state_machine :state, :initial => :waiting do # log initial state?
-    store_audit_trail :context_to_log => :context
+class ARModelNoInitial < ActiveRecord::Base
+
+  state_machine :state, initial: :waiting do # log initial state?
+    audit_trail initial: false
 
     event :start do
       transition [:waiting, :stopped] => :started
@@ -80,15 +58,11 @@ class ActiveRecordTestModelWithContext < ActiveRecord::Base
       transition :started => :stopped
     end
   end
-
-  def context
-    "Some context"
-  end
 end
-
-class ActiveRecordTestModelWithMultipleContext < ActiveRecord::Base
-  state_machine :state, :initial => :waiting do # log initial state?
-    store_audit_trail :context_to_log => [:context, :second_context]
+#
+class ARModelWithContext < ActiveRecord::Base
+  state_machine :state, initial: :waiting do # log initial state?
+    audit_trail context: :context
 
     event :start do
       transition [:waiting, :stopped] => :started
@@ -100,20 +74,44 @@ class ActiveRecordTestModelWithMultipleContext < ActiveRecord::Base
   end
 
   def context
-    "Some context"
+    'Some context'
+  end
+end
+
+class ARModelWithMultipleContext < ActiveRecord::Base
+  state_machine :state, initial: :waiting do # log initial state?
+    audit_trail context: [:context, :second_context, :context_with_args]
+
+    event :start do
+      transition [:waiting, :stopped] => :started
+    end
+
+    event :stop do
+      transition :started => :stopped
+    end
+  end
+
+  def context
+    'Some context'
   end
 
   def second_context
-    "Extra context"
+    'Extra context'
   end
+
+  def context_with_args(transition)
+    id = transition.args.last.delete(:id) if transition.args.present?
+    id
+  end
+
 end
 
-class ActiveRecordTestModelDescendant < ActiveRecordTestModel
+class ARModelDescendant < ARModel
 end
 
-class ActiveRecordTestModelDescendantWithOwnStateMachine < ActiveRecordTestModel
+class ARModelDescendantWithOwnStateMachines < ARModel
   state_machine :state, :initial => :new do
-    store_audit_trail
+    audit_trail
 
     event :complete do
       transition [:new] => :completed
@@ -121,10 +119,10 @@ class ActiveRecordTestModelDescendantWithOwnStateMachine < ActiveRecordTestModel
   end
 end
 
-class ActiveRecordTestModelWithMultipleStateMachines < ActiveRecord::Base
+class ARModelWithMultipleStateMachines < ActiveRecord::Base
 
   state_machine :first, :initial => :beginning do
-    store_audit_trail
+    audit_trail
 
     event :begin_first do
       transition :beginning => :end
@@ -132,7 +130,7 @@ class ActiveRecordTestModelWithMultipleStateMachines < ActiveRecord::Base
   end
 
   state_machine :second do
-    store_audit_trail
+    audit_trail
 
     event :begin_second do
       transition nil => :beginning_second
@@ -140,7 +138,7 @@ class ActiveRecordTestModelWithMultipleStateMachines < ActiveRecord::Base
   end
 
   state_machine :third, :action => nil do
-    store_audit_trail
+    audit_trail
 
     event :begin_third do
       transition nil => :beginning_third
@@ -153,14 +151,14 @@ class ActiveRecordTestModelWithMultipleStateMachines < ActiveRecord::Base
 end
 
 module SomeNamespace
-  class ActiveRecordTestModelStateTransition < ActiveRecord::Base
+  class ARModelStateTransition < ActiveRecord::Base
     belongs_to :test_model
   end
 
-  class ActiveRecordTestModel < ActiveRecord::Base
+  class ARModel < ActiveRecord::Base
 
-    state_machine :state, :initial => :waiting do # log initial state?
-      store_audit_trail
+    state_machine :state, initial: :waiting do # log initial state?
+      audit_trail
 
       event :start do
         transition [:waiting, :stopped] => :started
@@ -173,22 +171,52 @@ module SomeNamespace
   end
 end
 
+#
+# Generate tables
+#
+def create_model_table(owner_class, multiple_state_machines = false)
+  ActiveRecord::Base.connection.create_table(owner_class.name.tableize) do |t|
+    t.string :state unless multiple_state_machines
+    t.string :type
+
+    if multiple_state_machines
+      t.string :first
+      t.string :second
+      t.string :third
+    end
+
+    t.timestamps null: false
+  end
+end
+
+create_model_table(ARModel)
+create_model_table(ARModelNoInitial)
+create_model_table(ARModelWithContext)
+create_model_table(ARModelWithMultipleContext)
+create_model_table(ARModelWithMultipleStateMachines, true)
+
+
 def create_transition_table(owner_class, state, add_context = false)
   class_name = "#{owner_class.name}#{state.to_s.camelize}Transition"
   ActiveRecord::Base.connection.create_table(class_name.tableize) do |t|
+
+    # t.references :"#{owner_class.name.pluralize.demodulize.tableize}"
     t.integer owner_class.name.foreign_key
     t.string :event
     t.string :from
     t.string :to
+
     t.string :context if add_context
     t.string :second_context if add_context
+    t.string :context_with_args if add_context
     t.datetime :created_at
   end
 end
 
-create_transition_table(ActiveRecordTestModel, :state)
-create_transition_table(ActiveRecordTestModelWithContext, :state, true)
-create_transition_table(ActiveRecordTestModelWithMultipleContext, :state, true)
-create_transition_table(ActiveRecordTestModelWithMultipleStateMachines, :first)
-create_transition_table(ActiveRecordTestModelWithMultipleStateMachines, :second)
-create_transition_table(ActiveRecordTestModelWithMultipleStateMachines, :third)
+create_transition_table(ARModel, :state)
+create_transition_table(ARModelNoInitial, :state)
+create_transition_table(ARModelWithContext, :state, true)
+create_transition_table(ARModelWithMultipleContext, :state, true)
+create_transition_table(ARModelWithMultipleStateMachines, :first)
+create_transition_table(ARModelWithMultipleStateMachines, :second)
+create_transition_table(ARModelWithMultipleStateMachines, :third)

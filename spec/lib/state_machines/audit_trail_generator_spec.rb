@@ -10,7 +10,7 @@
 # describe StateMachines::AuditTrailGenerator, type: :generator do
 #
 #   destination File.expand_path('../../../../tmp', __FILE__)
-#   arguments %w(SomeNamespace::Subscription state)
+#   arguments %w(SomeModule::Subscription state)
 #
 #   before(:all) do
 #     prepare_destination
@@ -36,7 +36,7 @@
 #                                       end
 #                                       directory 'some_namespace' do
 #                                         file 'subscription_state_transition.rb' do
-#                                           contains 'class SomeNamespace::SubscriptionStateTransition'
+#                                           contains 'class SomeModule::SubscriptionStateTransition'
 #                                         end
 #                                       end
 #                                     end

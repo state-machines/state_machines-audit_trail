@@ -9,20 +9,33 @@ require 'helpers/active_record'
 describe StateMachines::AuditTrail::Backend::ActiveRecord do
 
   context ':initial option' do
-    it 'default logs' do
-      target = ARModel.new
-      # initial transition is built but not saved
-      expect(target.new_record?).to be_truthy
-      expect(target.ar_model_state_transitions.count).to eq 0
-      target.save!
+    context 'default' do
+      it 'new object' do
+        target = ARModel.new
+        # initial transition is built but not saved
+        expect(target.new_record?).to be_truthy
+        expect(target.ar_model_state_transitions.count).to eq 0
+        target.save!
 
-      # initial transition is saved and should be present
-      expect(target.new_record?).to be_falsey
-      expect(target.ar_model_state_transitions.count).to eq 1
-      state_transition = target.ar_model_state_transitions.first
-      expect(state_transition.from).to be_nil
-      expect(state_transition.to).to eq 'waiting'
-      expect(state_transition.event).to be_nil
+        # initial transition is saved and should be present
+        expect(target.new_record?).to be_falsey
+        expect(target.ar_model_state_transitions.count).to eq 1
+        state_transition = target.ar_model_state_transitions.first
+        expect(state_transition.from).to be_nil
+        expect(state_transition.to).to eq 'waiting'
+        expect(state_transition.event).to be_nil
+      end
+
+      it 'create object' do
+        target = ARModel.create!
+        # initial transition is saved and should be present
+        expect(target.new_record?).to be_falsey
+        expect(target.ar_model_state_transitions.count).to eq 1
+        state_transition = target.ar_model_state_transitions.first
+        expect(state_transition.from).to be_nil
+        expect(state_transition.to).to eq 'waiting'
+        expect(state_transition.event).to be_nil
+      end
     end
 
     it 'false skips log' do
@@ -38,6 +51,32 @@ describe StateMachines::AuditTrail::Backend::ActiveRecord do
     end
   end
 
+  context 'namespaced state_machine' do
+    it 'should log namespace' do
+      target = ARModelWithNamespace.create!
+
+      # initial transition is saved and should be present
+      expect(target.new_record?).to be_falsey
+      expect(target.ar_model_with_namespace_foo_state_transitions.count).to eq 1
+      state_transition = target.ar_model_with_namespace_foo_state_transitions.first
+      expect(state_transition.namespace).to eq 'foo'
+      expect(state_transition.from).to be_nil
+      expect(state_transition.to).to eq 'waiting'
+      expect(state_transition.event).to be_nil
+    end
+
+    it 'should not log namespace' do
+      target = ARModel.create!
+      expect(target.new_record?).to be_falsey
+      expect(target.ar_model_state_transitions.count).to eq 1
+      state_transition = target.ar_model_state_transitions.first
+      expect(state_transition.namespace).to be_nil
+      expect(state_transition.from).to be_nil
+      expect(state_transition.to).to eq 'waiting'
+      expect(state_transition.event).to be_nil
+    end
+  end
+
   context '#create_for' do
     it 'should be Backend::ActiveRecord' do
       backend = StateMachines::AuditTrail::Backend.create_for(ARModelWithContextStateTransition, ARModel)
@@ -49,13 +88,13 @@ describe StateMachines::AuditTrail::Backend::ActiveRecord do
       expect(ARModel.reflect_on_association(:ar_model_state_transitions).collection?).to be_truthy
     end
 
-    it 'should handle namespaced models' do
-      StateMachines::AuditTrail::Backend.create_for(ARModelWithContextStateTransition, SomeNamespace::ARModel)
-      expect(SomeNamespace::ARModel.reflect_on_association(:ar_model_state_transitions).collection?).to be_truthy
+    it 'should handle models within modules' do
+      StateMachines::AuditTrail::Backend.create_for(ARModelWithContextStateTransition, SomeModule::ARModel)
+      expect(SomeModule::ARModel.reflect_on_association(:ar_model_state_transitions).collection?).to be_truthy
     end
 
-    it 'should handle namespaced state transition model' do
-      StateMachines::AuditTrail::Backend.create_for(SomeNamespace::ARModelStateTransition, ARModel)
+    it 'should handle state transition models within modules' do
+      StateMachines::AuditTrail::Backend.create_for(SomeModule::ARModelStateTransition, ARModel)
       expect(ARModel.reflect_on_association(:ar_model_state_transitions).collection?).to be_truthy
     end
   end

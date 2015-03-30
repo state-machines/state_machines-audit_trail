@@ -9,7 +9,15 @@ class StateMachines::AuditTrail::Backend < Struct.new(:transition_class, :owner_
   #   - transition: state machine transition object that state machine passes to after/before transition callbacks
   #
   def log(object, transition)
-    fields = {event: transition.event ? transition.event.to_s : nil, from: transition.from, to: transition.to}
+
+    if transition.machine.presence
+      # full transition object
+      namespace = transition.machine.namespace
+    else
+      # initial state open struct
+      namespace = transition.namespace
+    end
+    fields = {namespace: namespace, event: transition.event ? transition.event.to_s : nil, from: transition.from, to: transition.to}
     [context].flatten(1).each { |field|
       fields[field] = resolve_context(object, field, transition)
     } unless self.context.nil?

@@ -9,6 +9,7 @@ class MongoidTestModelStateTransition
   include Mongoid::Timestamps
   belongs_to :mongoid_test_model
 
+  field :namespace, type: String
   field :event, type: String
   field :from,  type: String
   field :to,    type: String
@@ -19,6 +20,7 @@ class MongoidTestModelWithMultipleStateMachinesFirstTransition
   include Mongoid::Timestamps
   belongs_to :mongoid_test_model
 
+  field :namespace, type: String
   field :event, type: String
   field :from,  type: String
   field :to,    type: String
@@ -29,6 +31,7 @@ class MongoidTestModelWithMultipleStateMachinesSecondTransition
   include Mongoid::Timestamps
   belongs_to :mongoid_test_model
 
+  field :namespace, type: String
   field :event, type: String
   field :from,  type: String
   field :to,    type: String

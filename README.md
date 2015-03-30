@@ -160,7 +160,7 @@ Released under the MIT license (see LICENSE).
 
 ## Contributing
 
-1. Fork it ( https://github.com/alienfast/state_machines-audit_trail/fork )
+1. Fork it ( https://github.com/state-machines/state_machines-audit_trail/fork )
 2. Create your feature branch (`git checkout -b my-new-feature`)
 3. Commit your changes (`git commit -am 'Add some feature'`)
 4. Push to the branch (`git push origin my-new-feature`)

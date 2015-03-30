@@ -11,7 +11,7 @@ Gem::Specification.new do |s|
   s.authors     = ['Kevin Ross', 'Willem van Bergen', 'Jesse Storimer']
   s.email       = ['kevin.ross@alienfast.com', 'willem@shopify.com', 'jesse@shopify.com']
 
-  s.homepage    = 'https://github.com/alienfast/state_machines-audit_trail'
+  s.homepage    = 'https://github.com/state-machines/state_machines-audit_trail'
   s.summary     = %q{Log transitions on a state_machines to support auditing and business process analytics.}
   s.description = %q{Log transitions on a state_machines to support auditing and business process analytics.}
   s.license     = 'MIT'

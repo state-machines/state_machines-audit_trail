@@ -97,7 +97,7 @@ In order to utilize this feature, you need to:
 #### Example 1 - Store a single attribute value
 Store `Subscription` `field1` in `Transition` field `field1`:
 ```ruby
-audit_trail :context: :field1
+audit_trail context: :field1
 ```
 
 #### Example 2 - Store multiple attribute values
@@ -106,7 +106,25 @@ Store `Subscription` `field1` and `field2` in `Transition` fields `field1` and `
 audit_trail context: [:field1, :field2]
 ```
 
-#### Example 3 - Store simple method results
+#### Example 3 - Store multiple values from a single context object
+Store `Subscription` `user` in `Transition` fields `user_id` and `user_name`:
+```ruby
+class Subscription < ActiveRecord::Base
+  state_machines :state, initial: :start do
+    audit_trail context: :user
+    ...
+  end
+end
+
+class SubscriptionStateTransition < ActiveRecord::Base
+  def user=(u)
+    self.user_id = u.id
+    self.user_name = u.name
+  end
+end
+```
+
+#### Example 4 - Store simple method results
 Store simple method results.
 
 Sometimes it can be useful to store dynamically computed information, such as those from a `Subscription`  method `#plan_time_remaining`
@@ -123,7 +141,7 @@ class Subscription < ActiveRecord::Base
     ...
 ```
 
-#### Example 4 - Store advanced method results
+#### Example 5 - Store advanced method results
 Store method results that interrogate the transition for information such as `event` arguments:
 
 ```ruby

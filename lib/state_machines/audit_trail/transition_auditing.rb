@@ -30,9 +30,11 @@ module StateMachines::AuditTrail::TransitionAuditing
       unless state_machine.action == nil
         # Log the initial transition from null => initial (upon object instantiation)
         state_machine.owner_class.after_initialize do |object|
-          current_state = object.send(state_machine.attribute)
-          if !current_state.nil?
-            state_machine.backend.log(object, OpenStruct.new(namespace: state_machine.namespace, to: current_state))
+          if state_machine.backend.new_record? object
+            current_state = object.send(state_machine.attribute)
+            if !current_state.nil?
+              state_machine.backend.log(object, OpenStruct.new(namespace: state_machine.namespace, to: current_state))
+            end
           end
         end
       end

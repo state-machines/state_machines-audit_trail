@@ -21,9 +21,7 @@ describe StateMachines::AuditTrail::Backend::ActiveRecord do
         expect(target.new_record?).to be_falsey
         expect(target.ar_model_state_transitions.count).to eq 1
         state_transition = target.ar_model_state_transitions.first
-        expect(state_transition.from).to be_nil
-        expect(state_transition.to).to eq 'waiting'
-        expect(state_transition.event).to be_nil
+        assert_transition state_transition, nil, nil, 'waiting'
       end
 
       it 'create object' do
@@ -32,9 +30,13 @@ describe StateMachines::AuditTrail::Backend::ActiveRecord do
         expect(target.new_record?).to be_falsey
         expect(target.ar_model_state_transitions.count).to eq 1
         state_transition = target.ar_model_state_transitions.first
-        expect(state_transition.from).to be_nil
-        expect(state_transition.to).to eq 'waiting'
-        expect(state_transition.event).to be_nil
+        assert_transition state_transition, nil, nil, 'waiting'
+
+        # ensure we don't have a second initial state transition logged (issue #4)
+        target = target.reload()
+        expect(target.ar_model_state_transitions.count).to eq 1
+        state_transition = target.ar_model_state_transitions.first
+        assert_transition state_transition, nil, nil, 'waiting'
       end
     end
 
@@ -260,5 +262,14 @@ describe StateMachines::AuditTrail::Backend::ActiveRecord do
       m = ARModelDescendantWithOwnStateMachines.create!
       expect { m.complete! }.not_to raise_error
     end
+  end
+
+  private
+
+  def assert_transition(state_transition, event, from, to)
+    # expect(state_transition.namespace).to eq namespace
+    expect(state_transition.event).to eq event
+    expect(state_transition.from).to eq from
+    expect(state_transition.to).to eq to
   end
 end

@@ -48,6 +48,11 @@ class StateMachines::AuditTrail::Backend < Struct.new(:transition_class, :owner_
     end
   end
 
+  # Exists in case ORM layer has a different way of answering this question, but works for most.
+  def new_record?(object)
+    object.new_record?
+  end
+
   protected
 
   def persist(object, fields)

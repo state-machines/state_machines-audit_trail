@@ -64,6 +64,10 @@ class Subscription < ActiveRecord::Base
 ### That's it!
 `audit_trail` will register an `after_transition` callback that is used to log all transitions including the initial state if there is one.
 
+## Upgrading from state_machine-audit_trail
+
+See the wiki, https://github.com/state-machines/state_machines-audit_trail/wiki/Converting-from-former-state_machine-audit_trail-to-state_machines-audit_trail
+
 ## Configuration options
 
 ### `:initial` - turn off initial state logging

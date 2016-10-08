@@ -147,7 +147,7 @@ describe StateMachines::AuditTrail::Backend::ActiveRecord do
 
     context 'wants to log a single context' do
       before(:each) do
-        StateMachines::AuditTrail::Backend.create_for(ARModelWithContextStateTransition, ARModelWithContext, :context)
+        StateMachines::AuditTrail::Backend.create_for(ARModelWithContextStateTransition, ARModelWithContext, context: :context)
       end
 
       let!(:target) { ARModelWithContext.create! }
@@ -161,7 +161,7 @@ describe StateMachines::AuditTrail::Backend::ActiveRecord do
 
     context 'wants to log multiple context fields' do
       before(:each) do
-        StateMachines::AuditTrail::Backend.create_for(ARModelWithMultipleContextStateTransition, ARModelWithMultipleContext, [:context, :second_context, :context_with_args])
+        StateMachines::AuditTrail::Backend.create_for(ARModelWithMultipleContextStateTransition, ARModelWithMultipleContext, context: [:context, :second_context, :context_with_args])
       end
 
       let!(:target) { ARModelWithMultipleContext.create! }

@@ -12,6 +12,7 @@ module StateMachines::AuditTrail::TransitionAuditing
   #
   # options:
   #   - :class - custom state transition class
+  #   - :owner_class - the class which is to own the persisted transition objects
   #   - :context - methods to call/store in field of same name in the state transition class
   #   - :initial - if false, won't log null => initial state transition upon instantiation
   #
@@ -21,9 +22,10 @@ module StateMachines::AuditTrail::TransitionAuditing
       raise ":class option[#{options[:class]}] must be a class (not a string)." unless options[:class].is_a? Class
     end
     transition_class = options[:class] || default_transition_class
+    owner_class = options[:owner_class] || self.owner_class
 
     # backend implements #log to store transition information
-    @backend = StateMachines::AuditTrail::Backend.create_for(transition_class, self.owner_class, options[:context])
+    @backend = StateMachines::AuditTrail::Backend.create_for(transition_class, owner_class, options[:context])
 
     # Initial state logging can be turned off. Very useful for a model with multiple state_machines using a single TransitionState object for logging
     unless options[:initial] == false

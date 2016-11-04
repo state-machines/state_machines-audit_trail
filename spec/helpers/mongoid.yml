@@ -1,5 +1,5 @@
 test:
-  sessions:
+  clients:
     default:
       database: sm_audit_trail
       hosts:

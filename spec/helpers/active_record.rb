@@ -171,6 +171,38 @@ class ARModelWithMultipleStateMachines < ActiveRecord::Base
   end
 end
 
+class ARResourceStateTransition < ActiveRecord::Base
+  belongs_to :resource, polymorphic: true
+end
+
+class ARFirstModelWithPolymorphicStateTransition < ActiveRecord::Base
+  state_machine :state, :initial => :pending do
+    audit_trail class: ARResourceStateTransition, as: :ar_resource
+
+    event :start do
+      transition :pending => :in_progress
+    end
+
+    event :finish do
+      transition :in_progress => :complete
+    end
+  end
+end
+
+class ARSecondModelWithPolymorphicStateTransition < ActiveRecord::Base
+  state_machine :state, :initial => :pending do
+    audit_trail class: ARResourceStateTransition, as: :ar_resource
+
+    event :start do
+      transition :pending => :in_progress
+    end
+
+    event :finish do
+      transition :in_progress => :complete
+    end
+  end
+end
+
 module SomeModule
   class ARModelStateTransition < ActiveRecord::Base
     belongs_to :ar_model
@@ -215,20 +247,19 @@ def create_model_table(owner_class, multiple_state_machines = false, state_colum
 end
 
 
-%w(ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext).each do |name|
+%w(ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext ARFirstModelWithPolymorphicStateTransition ARSecondModelWithPolymorphicStateTransition).each do |name|
   create_model_table(name.constantize)
 end
 
 create_model_table(ARModelWithNamespace, false, :foo_state)
 create_model_table(ARModelWithMultipleStateMachines, true)
 
-
-def create_transition_table(owner_class, state, add_context = false)
-  class_name = "#{owner_class.name}#{state.to_s.camelize}Transition"
+def create_transition_table(owner_class_name, state, add_context: false, polymorphic: false)
+  class_name = "#{owner_class_name}#{state.to_s.camelize}Transition"
   ActiveRecord::Base.connection.create_table(class_name.tableize) do |t|
 
-    # t.references :"#{owner_class.name.pluralize.demodulize.tableize}"
-    t.integer owner_class.name.foreign_key
+    t.references "#{owner_class_name.demodulize.underscore}", index: false, polymorphic: polymorphic
+    # t.integer owner_class_name.foreign_key
     t.string :namespace
     t.string :event
     t.string :from
@@ -242,12 +273,13 @@ def create_transition_table(owner_class, state, add_context = false)
 end
 
 %w(ARModel ARModelNoInitial).each do |name|
-  create_transition_table(name.constantize, :state)
+  create_transition_table(name, :state)
 end
 
-create_transition_table(ARModelWithNamespace, :foo_state, false)
-create_transition_table(ARModelWithContext, :state, true)
-create_transition_table(ARModelWithMultipleContext, :state, true)
-create_transition_table(ARModelWithMultipleStateMachines, :first)
-create_transition_table(ARModelWithMultipleStateMachines, :second)
-create_transition_table(ARModelWithMultipleStateMachines, :third)
+create_transition_table("ARModelWithNamespace", :foo_state, add_context: false)
+create_transition_table("ARModelWithContext", :state, add_context: true)
+create_transition_table("ARModelWithMultipleContext", :state, add_context: true)
+create_transition_table("ARModelWithMultipleStateMachines", :first)
+create_transition_table("ARModelWithMultipleStateMachines", :second)
+create_transition_table("ARModelWithMultipleStateMachines", :third)
+create_transition_table("ARResource", :state, polymorphic: true)

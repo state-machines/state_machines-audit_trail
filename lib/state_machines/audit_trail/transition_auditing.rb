@@ -23,7 +23,7 @@ module StateMachines::AuditTrail::TransitionAuditing
     transition_class = options[:class] || default_transition_class
 
     # backend implements #log to store transition information
-    @backend = StateMachines::AuditTrail::Backend.create_for(transition_class, self.owner_class, options[:context])
+    @backend = StateMachines::AuditTrail::Backend.create_for(transition_class, self.owner_class, options[:context], options.slice(:as))
 
     # Initial state logging can be turned off. Very useful for a model with multiple state_machines using a single TransitionState object for logging
     unless options[:initial] == false

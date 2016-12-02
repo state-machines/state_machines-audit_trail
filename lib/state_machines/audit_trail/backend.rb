@@ -1,4 +1,4 @@
-class StateMachines::AuditTrail::Backend < Struct.new(:transition_class, :owner_class, :context)
+class StateMachines::AuditTrail::Backend < Struct.new(:transition_class, :owner_class, :options)
 
   autoload :Mongoid, 'state_machines/audit_trail/backend/mongoid'
   autoload :ActiveRecord, 'state_machines/audit_trail/backend/active_record'
@@ -18,9 +18,9 @@ class StateMachines::AuditTrail::Backend < Struct.new(:transition_class, :owner_
       namespace = transition.namespace
     end
     fields = {namespace: namespace, event: transition.event ? transition.event.to_s : nil, from: transition.from, to: transition.to}
-    [context].flatten(1).each { |field|
+    [*options[:context]].each { |field|
       fields[field] = resolve_context(object, field, transition)
-    } unless self.context.nil?
+    }
 
     # begin
     persist(object, fields)
@@ -38,11 +38,11 @@ class StateMachines::AuditTrail::Backend < Struct.new(:transition_class, :owner_
   # To add a new ORM, implement something similar to lib/state_machines/audit_trail/backend/active_record.rb
   # and return from here the appropriate object based on which ORM the transition_class is using
   #
-  def self.create_for(transition_class, owner_class, context = nil)
+  def self.create_for(transition_class, owner_class, options = {})
     if Object.const_defined?('ActiveRecord') && transition_class.ancestors.include?(::ActiveRecord::Base)
-      return StateMachines::AuditTrail::Backend::ActiveRecord.new(transition_class, owner_class, context)
+      return StateMachines::AuditTrail::Backend::ActiveRecord.new(transition_class, owner_class, options)
     elsif Object.const_defined?('Mongoid') && transition_class.ancestors.include?(::Mongoid::Document)
-      return StateMachines::AuditTrail::Backend::Mongoid.new(transition_class, owner_class, context)
+      return StateMachines::AuditTrail::Backend::Mongoid.new(transition_class, owner_class, options)
     else
       raise 'Not implemented. Only support for ActiveRecord and Mongoid is implemented. Pull requests welcome.'
     end

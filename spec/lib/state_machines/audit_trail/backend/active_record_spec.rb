@@ -147,7 +147,7 @@ describe StateMachines::AuditTrail::Backend::ActiveRecord do
 
     context 'wants to log a single context' do
       before(:each) do
-        StateMachines::AuditTrail::Backend.create_for(ARModelWithContextStateTransition, ARModelWithContext, :context)
+        StateMachines::AuditTrail::Backend.create_for(ARModelWithContextStateTransition, ARModelWithContext, context: :context)
       end
 
       let!(:target) { ARModelWithContext.create! }
@@ -161,7 +161,7 @@ describe StateMachines::AuditTrail::Backend::ActiveRecord do
 
     context 'wants to log multiple context fields' do
       before(:each) do
-        StateMachines::AuditTrail::Backend.create_for(ARModelWithMultipleContextStateTransition, ARModelWithMultipleContext, [:context, :second_context, :context_with_args])
+        StateMachines::AuditTrail::Backend.create_for(ARModelWithMultipleContextStateTransition, ARModelWithMultipleContext, context: [:context, :second_context, :context_with_args])
       end
 
       let!(:target) { ARModelWithMultipleContext.create! }
@@ -261,6 +261,19 @@ describe StateMachines::AuditTrail::Backend::ActiveRecord do
     it 'resolve class name on own state machine' do
       m = ARModelDescendantWithOwnStateMachines.create!
       expect { m.complete! }.not_to raise_error
+    end
+  end
+
+  context 'polymorphic' do
+    it 'creates polymorphic state transitions' do
+      m1 = ARFirstModelWithPolymorphicStateTransition.create!
+      m2 = ARSecondModelWithPolymorphicStateTransition.create!
+      m2.start!
+      m2.finish!
+
+      expect(m1.ar_resource_state_transitions.count).to eq(1)
+      expect(m2.ar_resource_state_transitions.count).to eq(3)
+      expect(ARResourceStateTransition.count).to eq(4)
     end
   end
 

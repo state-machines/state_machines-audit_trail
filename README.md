@@ -56,7 +56,7 @@ will generate the `SubscriptionStateTransition` model and an accompanying migrat
 
 ```ruby
 class Subscription < ActiveRecord::Base
-  state_machines :state, initial: :start do
+  state_machine :state, initial: :start do
     audit_trail
     ...
 ```

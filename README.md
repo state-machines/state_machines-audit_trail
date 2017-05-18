@@ -114,7 +114,7 @@ audit_trail context: [:field1, :field2]
 Store `Subscription` `user` in `Transition` fields `user_id` and `user_name`:
 ```ruby
 class Subscription < ActiveRecord::Base
-  state_machines :state, initial: :start do
+  state_machine :state, initial: :start do
     audit_trail context: :user
     ...
   end
@@ -136,7 +136,7 @@ Sometimes it can be useful to store dynamically computed information, such as th
 
 ```ruby
 class Subscription < ActiveRecord::Base
-  state_machines :state, initial: :start do
+  state_machine :state, initial: :start do
     audit_trail :context: :plan_time_remaining
     ...
 
@@ -150,7 +150,7 @@ Store method results that interrogate the transition for information such as `ev
 
 ```ruby
 class Subscription < ActiveRecord::Base
-  state_machines :state, initial: :start do
+  state_machine :state, initial: :start do
     audit_trail :context: :user_name
     ...
 

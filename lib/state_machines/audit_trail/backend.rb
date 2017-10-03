@@ -60,7 +60,15 @@ class StateMachines::AuditTrail::Backend < Struct.new(:transition_class, :owner_
   end
 
   def resolve_context(object, context, transition)
-    if object.method(context).arity != 0
+    # ---------------
+    # TODO: remove this check after we set a minimum version of Rails/ActiveRecord to 5.1+. At that time, the argument will be removed and the arity check will be enough. - rosskevin
+    # Don't send params to Rails 5+ associations because it triggers a ton of deprecation messages.
+    # @see https://github.com/state-machines/state_machines-audit_trail/issues/6
+    #  check if activerecord && the context is an association
+    skip_args = object.is_a?(::ActiveRecord::Base) && object.class.reflections.keys.include?(context.to_s)
+    # ---------------
+
+    if object.method(context).arity != 0 && !skip_args
       object.send(context, transition)
     else
       object.send(context)

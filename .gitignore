@@ -1,6 +1,7 @@
 *.gem
-/.bundle
+.bundle
 Gemfile.lock
+*.gemfile.lock
 pkg/*
 .DS_Store
 *.rbc

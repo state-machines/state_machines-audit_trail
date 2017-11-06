@@ -28,6 +28,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency('bson_ext')
   s.add_development_dependency('generator_spec')
   s.add_development_dependency('rails', '>= 5.0.0')
+  s.add_development_dependency('appraisal', '~> 2.2.0')
 
   s.files = `git ls-files`.split($/).reject { |f| f =~ /^samples\// }
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }

@@ -6,4 +6,10 @@ RSpec::Core::RakeTask.new(:spec) do |task|
   task.rspec_opts = ['--color']
 end
 
-task :default => [:spec]
+if ENV['APPRAISAL_INITIALIZED'] || ENV['TRAVIS']
+  task :default => :spec
+else
+  require 'appraisal'
+  Appraisal::Task.new
+  task :default => :appraisal
+end

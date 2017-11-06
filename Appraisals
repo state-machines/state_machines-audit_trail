@@ -9,6 +9,7 @@ appraise 'rails_5.1' do
 end
 
 appraise 'rails_edge' do
+  gem 'rails', github: 'rails/rails', branch: 'master'
   gem 'activerecord', github: 'rails/rails', branch: 'master'
   gem 'activemodel', github: 'rails/rails', branch: 'master'
   gem 'arel', github: 'rails/arel', branch: 'master'

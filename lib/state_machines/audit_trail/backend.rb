@@ -19,7 +19,7 @@ module StateMachines
                       transition.namespace
                     end
         fields = { namespace: namespace, event: transition.event&.to_s, from: transition.from,
-                   to: transition.to }
+                   to: transition.to }.compact
         [*options[:context]].each do |field|
           fields[field] = resolve_context(object, field, transition)
         end

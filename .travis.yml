@@ -8,6 +8,7 @@ services: mongodb
 rvm:
   - 2.2.2
   - 2.3.1
+  - 2.4.1
   - jruby
   - rbx-2
 gemfile:
@@ -16,5 +17,9 @@ gemfile:
   - gemfiles/rails_edge.gemfile
 matrix:
   allow_failures:
+    - gemfile: gemfiles/rails_edge.gemfile
+      rvm: 2.2.2
+    - gemfile: gemfiles/rails_edge.gemfile
+      rvm: 2.3.1
     - rvm: rbx-2
     - rvm: jruby

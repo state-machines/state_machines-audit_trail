@@ -31,7 +31,7 @@ module StateMachines::AuditTrail::TransitionAuditing
     unless options[:initial] == false
       unless state_machine.action == nil
         # Log the initial transition from null => initial (upon object instantiation)
-        state_machine.owner_class.after_initialize do |object|
+        state_machine.owner_class.before_create do |object|
           if state_machine.backend.new_record? object
             current_state = object.send(state_machine.attribute)
             if !current_state.nil?

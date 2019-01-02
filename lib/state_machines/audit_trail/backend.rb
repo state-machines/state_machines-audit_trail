@@ -68,7 +68,7 @@ class StateMachines::AuditTrail::Backend < Struct.new(:transition_class, :owner_
     skip_args = object.is_a?(::ActiveRecord::Base) && object.class.reflections.keys.include?(context.to_s)
     # ---------------
 
-    if object.method(context).arity != 0 && !skip_args
+    if object.method(context).arity == 1 && !skip_args
       object.send(context, transition)
     else
       object.send(context)

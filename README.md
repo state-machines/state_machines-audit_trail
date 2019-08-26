@@ -12,7 +12,7 @@ for any state machine. Having an audit trail gives you a complete history of the
 to investigate incidents or perform analytics, like: _"How long does it take on average to go from state a to state b?"_,
 or _"What percentage of cases goes from state a to b via state c?"_
 
-For more information read [Why developers should be force-fed state machines](https://engineering.shopify.com/17488160-why-developers-should-be-force-fed-state-machines).
+For more information read [Why developers should be force-fed state machines](https://engineering.shopify.com/blogs/engineering/17488160-why-developers-should-be-force-fed-state-machines).
 
 ## ORM support
 

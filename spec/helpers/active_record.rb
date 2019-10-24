@@ -254,13 +254,13 @@ end
 create_model_table(ARModelWithNamespace, false, :foo_state)
 create_model_table(ARModelWithMultipleStateMachines, true)
 
-def create_transition_table(owner_class_name, state, add_context: false, polymorphic: false)
+def create_transition_table(owner_class_name, state, add_context: false, polymorphic: false, add_namespace: false)
   class_name = "#{owner_class_name}#{state.to_s.camelize}Transition"
   ActiveRecord::Base.connection.create_table(class_name.tableize) do |t|
 
     t.references "#{owner_class_name.demodulize.underscore}", index: false, polymorphic: polymorphic
     # t.integer owner_class_name.foreign_key
-    t.string :namespace
+    t.string :namespace if add_namespace
     t.string :event
     t.string :from
     t.string :to
@@ -276,7 +276,7 @@ end
   create_transition_table(name, :state)
 end
 
-create_transition_table("ARModelWithNamespace", :foo_state, add_context: false)
+create_transition_table("ARModelWithNamespace", :foo_state, add_namespace: true)
 create_transition_table("ARModelWithContext", :state, add_context: true)
 create_transition_table("ARModelWithMultipleContext", :state, add_context: true)
 create_transition_table("ARModelWithMultipleStateMachines", :first)

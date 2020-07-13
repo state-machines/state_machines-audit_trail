@@ -19,6 +19,10 @@ class ARModelWithContextStateTransition < ActiveRecord::Base
   belongs_to :ar_model_with_context
 end
 
+class ARModelWithContextBasedOnOtherFieldStateTransition < ActiveRecord::Base
+  belongs_to :ar_model_with_context_based_on_other_field
+end
+
 class ARModelWithMultipleContextStateTransition < ActiveRecord::Base
   belongs_to :ar_model_with_multiple_context
 end
@@ -124,7 +128,24 @@ class ARModelWithMultipleContext < ActiveRecord::Base
     id = transition.args.last.delete(:id) if transition.args.present?
     id
   end
+end
 
+class ARModelWithContextBasedOnOtherField < ActiveRecord::Base
+  state_machine :state, initial: :waiting do
+    audit_trail context: :context
+
+    event :start do
+      transition [:waiting, :stopped] => :started
+    end
+
+    event :stop do
+      transition :started => :stopped
+    end
+  end
+
+  def context
+    other_field
+  end
 end
 
 class ARModelDescendant < ARModel
@@ -227,7 +248,7 @@ end
 #
 # Generate tables
 #
-def create_model_table(owner_class, multiple_state_machines = false, state_column = nil)
+def create_model_table(owner_class, multiple_state_machines = false, state_column = nil, additional_field = nil)
   ActiveRecord::Base.connection.create_table(owner_class.name.tableize) do |t|
     if state_column.presence
       t.string state_column
@@ -242,6 +263,10 @@ def create_model_table(owner_class, multiple_state_machines = false, state_colum
       t.string :third
     end
 
+    if additional_field
+      t.string additional_field
+    end
+
     t.timestamps null: false
   end
 end
@@ -253,6 +278,7 @@ end
 
 create_model_table(ARModelWithNamespace, false, :foo_state)
 create_model_table(ARModelWithMultipleStateMachines, true)
+create_model_table(ARModelWithContextBasedOnOtherField, false, :state, :other_field)
 
 def create_transition_table(owner_class_name, state, add_context: false, polymorphic: false)
   class_name = "#{owner_class_name}#{state.to_s.camelize}Transition"
@@ -279,6 +305,7 @@ end
 create_transition_table("ARModelWithNamespace", :foo_state, add_context: false)
 create_transition_table("ARModelWithContext", :state, add_context: true)
 create_transition_table("ARModelWithMultipleContext", :state, add_context: true)
+create_transition_table("ARModelWithContextBasedOnOtherField", :state, add_context: true)
 create_transition_table("ARModelWithMultipleStateMachines", :first)
 create_transition_table("ARModelWithMultipleStateMachines", :second)
 create_transition_table("ARModelWithMultipleStateMachines", :third)

@@ -5,7 +5,7 @@ class StateMachines::AuditTrail::Backend::ActiveRecord < StateMachines::AuditTra
     super
     @association = transition_class.to_s.tableize.split('/').last.to_sym
     assoc_options = {class_name: transition_class.to_s}.merge(options.slice(:as))
-    owner_class.has_many(@association, assoc_options) unless owner_class.reflect_on_association(@association)
+    owner_class.has_many(@association, **assoc_options) unless owner_class.reflect_on_association(@association)
   end
 
   def persist(object, fields)

@@ -1,5 +1,5 @@
 [![Build Status](https://travis-ci.org/state-machines/state_machines-audit_trail.svg?branch=master)](https://travis-ci.org/state-machines/state_machines-audit_trail)
-[![Code Climate](https://codeclimate.com/github/state-machines/state_machines-audit_trail.png)](https://codeclimate.com/github/state-machines/state_machines-audit_trail)
+[![Code Climate](https://codeclimate.com/github/state-machines/state_machines-audit_trail.svg)](https://codeclimate.com/github/state-machines/state_machines-audit_trail)
 
 # state_machines-audit_trail
 Log transitions on a [state_machines gem](https://github.com/state-machines/state_machines) to support auditing and business process analytics.
@@ -12,7 +12,7 @@ for any state machine. Having an audit trail gives you a complete history of the
 to investigate incidents or perform analytics, like: _"How long does it take on average to go from state a to state b?"_,
 or _"What percentage of cases goes from state a to b via state c?"_
 
-For more information read [Why developers should be force-fed state machines](http://www.shopify.com/technology/3383012-why-developers-should-be-force-fed-state-machines).
+For more information read [Why developers should be force-fed state machines](https://engineering.shopify.com/blogs/engineering/17488160-why-developers-should-be-force-fed-state-machines).
 
 ## ORM support
 

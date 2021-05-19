@@ -23,9 +23,13 @@ Gem::Specification.new do |s|
   s.add_development_dependency('rake')
   s.add_development_dependency('rspec', '>= 3.0.0')
   s.add_development_dependency('activerecord', '>= 5.0.0')
-  s.add_development_dependency('sqlite3')
+  if(defined?(JRUBY_VERSION))
+    s.add_development_dependency('activerecord-jdbcsqlite3-adapter')
+  else
+    s.add_development_dependency('sqlite3')
+  end
   s.add_development_dependency('mongoid', '>= 6.0.0.beta')
-  s.add_development_dependency('bson_ext')
+  s.add_development_dependency('bson')
   s.add_development_dependency('generator_spec')
   s.add_development_dependency('rails', '>= 5.0.0')
   s.add_development_dependency('appraisal', '~> 2.2.0')

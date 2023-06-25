@@ -1,13 +1,8 @@
-# -*- encoding: utf-8 -*-
-
-lib = File.expand_path('../lib', __FILE__)
-$LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
-require 'state_machines/audit_trail/version'
+require_relative '' 'lib/state_machines/audit_trail/version'
 
 Gem::Specification.new do |s|
   s.name        = 'state_machines-audit_trail'
   s.version     = StateMachines::AuditTrail::VERSION
-  s.platform    = Gem::Platform::RUBY
   s.authors     = ['Kevin Ross', 'Willem van Bergen', 'Jesse Storimer']
   s.email       = ['kevin.ross@alienfast.com', 'willem@shopify.com', 'jesse@shopify.com']
 
@@ -34,8 +29,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency('rails', '>= 5.0.0')
   s.add_development_dependency('appraisal', '~> 2.2.0')
 
-  s.files = `git ls-files`.split($/).reject { |f| f =~ /^samples\// }
-  s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
-  s.test_files = s.files.grep(%r{^(test|spec|features)/})
+  s.files = Dir["{lib}/**/*", "LICENSE", "Rakefile", "README.md"]
+  s.test_files = Dir["spec/**/*"]
   s.require_paths = ['lib']
 end

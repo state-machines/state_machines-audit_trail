@@ -1,16 +1,24 @@
-appraise 'rails_5.0' do
-  gem 'activerecord', '~> 5.0'
-  gem 'activemodel', '~> 5.0'
+appraise 'rails_6.0' do
+  gem "sqlite3", platforms: :mri
+  gem "activerecord-jdbcsqlite3-adapter", platform: [:jruby, :truffleruby]
+  gem "activerecord", '~> 6.0.3'
 end
 
-appraise 'rails_5.1' do
-  gem 'activerecord', '~> 5.1'
-  gem 'activemodel', '~> 5.1'
+appraise 'rails_6.1' do
+  gem "sqlite3", platforms: :mri
+  gem "activerecord-jdbcsqlite3-adapter", platform: [:jruby, :truffleruby]
+  gem "activerecord", '~> 6.1.3'
 end
 
-appraise 'rails_edge' do
-  gem 'rails', github: 'rails/rails', branch: 'master'
-  gem 'activerecord', github: 'rails/rails', branch: 'master'
-  gem 'activemodel', github: 'rails/rails', branch: 'master'
-  gem 'arel', github: 'rails/arel', branch: 'master'
+appraise 'rails_7.0' do
+  gem "sqlite3", platforms: [:mri, :rbx]
+  gem "activerecord-jdbcsqlite3-adapter", platform: [:jruby, :truffleruby]
+  gem "activerecord", '~> 7.0.4'
+end
+
+appraise "rails_edge" do
+  gem "sqlite3", platforms: :mri
+  gem "activerecord-jdbcsqlite3-adapter", platform: [:jruby, :truffleruby]
+  gem "activerecord", github: 'rails/rails',  branch: 'main'
+  gem "activemodel", github: 'rails/rails', branch: 'main'
 end

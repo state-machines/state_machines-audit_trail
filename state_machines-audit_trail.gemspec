@@ -16,7 +16,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency('rake')
   s.add_development_dependency('rspec', '>= 3.0.0')
   s.add_development_dependency('generator_spec')
-  s.add_development_dependency('appraisal', '~> 2.2.0')
+  s.add_development_dependency('appraisal')
 
   s.files = Dir["{lib}/**/*", "LICENSE", "Rakefile", "README.md"]
   s.test_files = Dir["spec/**/*"]

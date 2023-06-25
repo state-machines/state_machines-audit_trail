@@ -17,7 +17,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency('state_machines-mongoid')
   s.add_development_dependency('rake')
   s.add_development_dependency('rspec', '>= 3.0.0')
-  s.add_development_dependency('activerecord', '>= 5.0.0')
+  s.add_development_dependency('activerecord', '>= 6.0.0')
   if(defined?(JRUBY_VERSION))
     s.add_development_dependency('activerecord-jdbcsqlite3-adapter')
   else
@@ -26,7 +26,6 @@ Gem::Specification.new do |s|
   s.add_development_dependency('mongoid', '>= 6.0.0.beta')
   s.add_development_dependency('bson')
   s.add_development_dependency('generator_spec')
-  s.add_development_dependency('rails', '>= 5.0.0')
   s.add_development_dependency('appraisal', '~> 2.2.0')
 
   s.files = Dir["{lib}/**/*", "LICENSE", "Rakefile", "README.md"]

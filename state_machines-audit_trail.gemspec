@@ -12,19 +12,9 @@ Gem::Specification.new do |s|
   s.license     = 'MIT'
 
   s.add_runtime_dependency('state_machines')
-
   s.add_development_dependency('state_machines-activerecord')
-  s.add_development_dependency('state_machines-mongoid')
   s.add_development_dependency('rake')
   s.add_development_dependency('rspec', '>= 3.0.0')
-  s.add_development_dependency('activerecord', '>= 6.0.0')
-  if(defined?(JRUBY_VERSION))
-    s.add_development_dependency('activerecord-jdbcsqlite3-adapter')
-  else
-    s.add_development_dependency('sqlite3')
-  end
-  s.add_development_dependency('mongoid', '>= 6.0.0.beta')
-  s.add_development_dependency('bson')
   s.add_development_dependency('generator_spec')
   s.add_development_dependency('appraisal', '~> 2.2.0')
 

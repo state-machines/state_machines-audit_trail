@@ -1,0 +1,9 @@
+{
+  "release-type": "ruby",
+  "packages": {
+    ".": {
+      "release-type": "ruby",
+      "package-name": "state_machines-audit_trail"
+    }
+  }
+}

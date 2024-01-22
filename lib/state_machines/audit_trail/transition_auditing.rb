@@ -1,4 +1,3 @@
-require 'ostruct'
 #
 # This module inserts hooks into the state machine.
 # The transition_class is the class (optionally specified with the :class option) for the model which
@@ -7,6 +6,30 @@ require 'ostruct'
 # Multiple `SubscriptionStateTransition`s compose the 'audit_trail'.
 #
 module StateMachines::AuditTrail::TransitionAuditing
+  class InitialTransition
+    attr_reader :namespace, :to
+
+    def initialize(namespace:, to:)
+      @namespace = namespace
+      @to = to
+    end
+
+    def from
+      nil
+    end
+
+    def event
+      nil
+    end
+
+    def machine
+      nil
+    end
+
+    def args
+      nil
+    end
+  end
 
   # Hook for audit_trail inside a a state_machine declaration.
   #
@@ -35,7 +58,7 @@ module StateMachines::AuditTrail::TransitionAuditing
           if state_machine.backend.new_record? object
             current_state = object.send(state_machine.attribute)
             if !current_state.nil?
-              state_machine.backend.log(object, OpenStruct.new(namespace: state_machine.namespace, to: current_state))
+              state_machine.backend.log(object, InitialTransition.new(namespace: state_machine.namespace, to: current_state))
             end
           end
         end

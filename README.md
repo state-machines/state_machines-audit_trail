@@ -1,4 +1,3 @@
-[![Build Status](https://travis-ci.org/state-machines/state_machines-audit_trail.svg?branch=master)](https://travis-ci.org/state-machines/state_machines-audit_trail)
 [![Code Climate](https://codeclimate.com/github/state-machines/state_machines-audit_trail.svg)](https://codeclimate.com/github/state-machines/state_machines-audit_trail)
 
 # state_machines-audit_trail

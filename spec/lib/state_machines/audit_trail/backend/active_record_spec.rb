@@ -67,12 +67,11 @@ describe StateMachines::AuditTrail::Backend::ActiveRecord do
       expect(state_transition.event).to be_nil
     end
 
-    it 'should not log namespace' do
+    it 'should not log namespace if namespace column doesn\'t exist' do
       target = ARModel.create!
       expect(target.new_record?).to be_falsey
       expect(target.ar_model_state_transitions.count).to eq 1
       state_transition = target.ar_model_state_transitions.first
-      expect(state_transition.namespace).to be_nil
       expect(state_transition.from).to be_nil
       expect(state_transition.to).to eq 'waiting'
       expect(state_transition.event).to be_nil

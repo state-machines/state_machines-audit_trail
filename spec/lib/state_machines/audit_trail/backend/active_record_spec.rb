@@ -180,6 +180,22 @@ describe StateMachines::AuditTrail::Backend::ActiveRecord do
       end
     end
 
+    context 'wants to log a real context on save, not on initialize' do
+      before(:each) do
+        StateMachines::AuditTrail::Backend.create_for(ARModelWithContextBasedOnOtherFieldStateTransition, ARModelWithContextBasedOnOtherField, context: :context)
+      end
+
+      let!(:target) { ARModelWithContextBasedOnOtherField.new other_field: "initial_other_field_value" }
+
+      it 'should populate with real_other_field_value' do
+        target.other_field = "real_other_field_value"
+        target.save
+        last_transition = ARModelWithContextBasedOnOtherFieldStateTransition.where(:ar_model_with_context_based_on_other_field_id => target.id).last
+        expect(last_transition.context).to eq target.other_field
+        expect(last_transition.context).not_to eq "initial_other_field_value"
+      end
+    end
+
   end
 
 

@@ -35,6 +35,10 @@ class ARModelWithMultipleStateMachinesThirdTransition < ActiveRecord::Base
   belongs_to :ar_model_with_multiple_state_machines
 end
 
+class ARModelConditionalTransitionLogStateTransition < ActiveRecord::Base
+  belongs_to :ar_model_conditional_transition_log, class_name: '::ARModelConditionalTransitionLog'
+end
+
 class ARModel < ActiveRecord::Base
 
   state_machine :state, initial: :waiting do
@@ -203,6 +207,27 @@ class ARSecondModelWithPolymorphicStateTransition < ActiveRecord::Base
   end
 end
 
+class ARModelConditionalTransitionLog < ActiveRecord::Base
+
+  state_machine :state, initial: :waiting do
+    audit_trail if: :should_log_transition?
+
+    event :start do
+      transition [:waiting, :stopped] => :started
+    end
+
+    event :stop do
+      transition :started => :stopped
+    end
+  end
+
+  private
+
+  def should_log_transition?
+    state == 'stopped'
+  end
+end
+
 module SomeModule
   class ARModelStateTransition < ActiveRecord::Base
     belongs_to :ar_model
@@ -247,7 +272,7 @@ def create_model_table(owner_class, multiple_state_machines = false, state_colum
 end
 
 
-%w(ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext ARFirstModelWithPolymorphicStateTransition ARSecondModelWithPolymorphicStateTransition).each do |name|
+%w(ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext ARFirstModelWithPolymorphicStateTransition ARSecondModelWithPolymorphicStateTransition ARModelConditionalTransitionLog).each do |name|
   create_model_table(name.constantize)
 end
 
@@ -283,3 +308,4 @@ create_transition_table("ARModelWithMultipleStateMachines", :first)
 create_transition_table("ARModelWithMultipleStateMachines", :second)
 create_transition_table("ARModelWithMultipleStateMachines", :third)
 create_transition_table("ARResource", :state, polymorphic: true)
+create_transition_table("ARModelConditionalTransitionLog", :state)

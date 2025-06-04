@@ -277,6 +277,20 @@ describe StateMachines::AuditTrail::Backend::ActiveRecord do
     end
   end
 
+  context 'conditional transition logging' do
+    it 'logs the transition of the condition matches' do
+      m1 = ARModelConditionalTransitionLog.create!
+      m1.start!
+      m1.stop!
+
+      expect(m1.ar_model_conditional_transition_log_state_transitions.count).to eq(1)
+      expect(ARModelConditionalTransitionLogStateTransition.count).to eq(1)
+      transition = m1.ar_model_conditional_transition_log_state_transitions.first
+      expect(transition.from).to eq("started")
+      expect(transition.to).to eq("stopped")
+    end
+  end
+
   private
 
   def assert_transition(state_transition, event, from, to)

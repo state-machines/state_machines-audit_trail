@@ -57,7 +57,8 @@ module StateMachines::AuditTrail::TransitionAuditing
         state_machine.owner_class.after_initialize do |object|
           if state_machine.backend.new_record? object
             current_state = object.send(state_machine.attribute)
-            if !current_state.nil?
+            should_log_transition = options[:if] == nil || state_machine.evaluate_method(object, options[:if])
+            if !current_state.nil? && should_log_transition
               state_machine.backend.log(object, InitialTransition.new(namespace: state_machine.namespace, to: current_state))
             end
           end
@@ -66,7 +67,10 @@ module StateMachines::AuditTrail::TransitionAuditing
     end
 
     # Log any transition (other than initial)
-    state_machine.after_transition do |object, transition|
+    after_transition_args = {
+      if: options[:if],
+    }.compact
+    state_machine.after_transition(after_transition_args) do |object, transition|
       state_machine.backend.log(object, transition)
     end
   end

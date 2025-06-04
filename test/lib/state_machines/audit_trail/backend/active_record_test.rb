@@ -376,6 +376,37 @@ class ActiveRecordBackendTest < Minitest::Test
     refute_equal 'initial_other_field_value', last_transition.context
   end
 
+  def test_conditional_audit_trail_skips_initial_transition_when_condition_false
+    # should_log_transition? is false while state is :waiting (the initial state)
+    target = ARModelConditionalAuditTrail.create!
+
+    assert_equal 0, target.ar_model_conditional_audit_trail_state_transitions.count
+  end
+
+  def test_conditional_audit_trail_skips_transition_when_condition_false
+    target = ARModelConditionalAuditTrail.create!
+    # start: waiting -> started; should_log_transition? is still false (state != 'stopped')
+    target.start!
+
+    assert_equal 'started', target.state
+    assert_equal 0, target.ar_model_conditional_audit_trail_state_transitions.count
+  end
+
+  def test_conditional_audit_trail_logs_transition_when_condition_becomes_true
+    target = ARModelConditionalAuditTrail.create!
+    target.start!
+    # stop: started -> stopped; should_log_transition? becomes true (state == 'stopped')
+    target.stop!
+
+    assert_equal 'stopped', target.state
+    assert_equal 1, target.ar_model_conditional_audit_trail_state_transitions.count
+    last_transition = target.ar_model_conditional_audit_trail_state_transitions.last
+
+    assert_equal 'stop', last_transition.event
+    assert_equal 'started', last_transition.from
+    assert_equal 'stopped', last_transition.to
+  end
+
   def test_polymorphic_creates_polymorphic_state_transitions
     m1 = ARFirstModelWithPolymorphicStateTransition.create!
     m2 = ARSecondModelWithPolymorphicStateTransition.create!

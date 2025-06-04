@@ -42,6 +42,7 @@ module StateMachines
       #   - :owner_class - the class which is to own the persisted transition objects
       #   - :context - methods to call/store in field of same name in the state transition class
       #   - :initial - if false, won't log null => initial state transition upon instantiation
+      #   - :if - method/proc/symbol; only log transitions (initial and regular) when it evaluates truthy
       #
       def audit_trail(options = {})
         state_machine = self
@@ -71,17 +72,13 @@ module StateMachines
           # once per object - same guarantee `after_initialize` + the new_record? guard
           # provided, just resolved at the right time.
           state_machine.owner_class.before_create do |object|
-            current_state = object.send(state_machine.attribute)
-            unless current_state.nil?
-              state_machine.backend.log(object,
-                                        InitialTransition.new(namespace: state_machine.namespace,
-                                                              to: current_state))
-            end
+            state_machine.send(:log_initial_transition, options, object)
           end
         end
 
         # Log any transition (other than initial)
-        state_machine.after_transition do |object, transition|
+        after_transition_args = { if: options[:if] }.compact
+        state_machine.after_transition(after_transition_args) do |object, transition|
           state_machine.backend.log(object, transition)
         end
       end
@@ -92,6 +89,20 @@ module StateMachines
       end
 
       private
+
+      # Logs the null => initial state transition for a brand-new record, called from
+      # the `before_create` hook set up in `audit_trail`. Resolving :context here (at
+      # save time) rather than at `.new` time is the whole point of using before_create
+      # instead of after_initialize - see the comment at the call site.
+      def log_initial_transition(options, object)
+        current_state = object.send(attribute)
+        return if current_state.nil?
+
+        should_log_transition = options[:if].nil? || evaluate_method(object, options[:if])
+        return unless should_log_transition
+
+        backend.log(object, InitialTransition.new(namespace: namespace, to: current_state))
+      end
 
       def default_transition_class
         owner_class_or_base_class = owner_class.respond_to?(:base_class) ? owner_class.base_class : owner_class

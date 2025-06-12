@@ -1,0 +1,40 @@
+plugins:
+  - rubocop-performance
+  - rubocop-minitest
+
+AllCops:
+  TargetRubyVersion: 3.2
+  NewCops: enable
+  Exclude:
+    - 'gemfiles/**/*'
+    - 'bin/**/*'
+    - 'vendor/**/*'
+    - 'pkg/**/*'
+    - 'spec/**/*'
+
+Style/StringLiterals:
+  EnforcedStyle: single_quotes
+
+Style/Documentation:
+  Enabled: false
+
+Layout/LineLength:
+  Max: 120
+
+Metrics/MethodLength:
+  Max: 15
+
+Metrics/ClassLength:
+  Max: 150
+
+Metrics/BlockLength:
+  Exclude:
+    - 'test/**/*'
+    - '*.gemspec'
+
+Layout/EmptyLinesAroundBlockBody:
+  Exclude:
+    - 'test/**/*'
+
+Minitest/MultipleAssertions:
+  Max: 5

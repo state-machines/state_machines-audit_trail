@@ -18,7 +18,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency('appraisal')
   s.add_development_dependency('minitest', '~> 5.0')
   s.add_development_dependency('rake')
-  s.add_development_dependency('sqlite3')
+  s.add_development_dependency('sqlite3', '>= 2.1')
   s.add_development_dependency('state_machines-activerecord')
 
   s.files = Dir['{lib}/**/*', 'LICENSE', 'Rakefile', 'README.md']

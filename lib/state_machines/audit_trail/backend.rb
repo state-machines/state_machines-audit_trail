@@ -60,10 +60,10 @@ module StateMachines
       end
 
       def resolve_context(object, context, transition)
-        if object.method(context).arity != 0
-          object.send(context, transition)
-        else
+        if object.method(context).arity.zero?
           object.send(context)
+        else
+          object.send(context, transition)
         end
       end
     end

@@ -4,7 +4,7 @@ require 'state_machines-activerecord'
 
 module StateMachines
   module AuditTrail
-    module Backend
+    class Backend
       class ActiveRecord < StateMachines::AuditTrail::Backend
         def initialize(transition_class, owner_class, options = {})
           super

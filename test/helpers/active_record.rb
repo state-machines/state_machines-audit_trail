@@ -131,6 +131,9 @@ end
 class ARModelDescendant < ARModel
 end
 
+class ARModelDescendantWithOwnStateMachinesStateTransition < ApplicationRecord
+end
+
 class ARModelDescendantWithOwnStateMachines < ARModel
   state_machine :state, initial: :new do
     audit_trail
@@ -172,7 +175,7 @@ class ARModelWithMultipleStateMachines < ApplicationRecord
 end
 
 class ARResourceStateTransition < ApplicationRecord
-  belongs_to :resource, polymorphic: true
+  belongs_to :ar_resource, polymorphic: true
 end
 
 class ARFirstModelWithPolymorphicStateTransition < ApplicationRecord
@@ -282,3 +285,4 @@ create_transition_table('ARModelWithMultipleStateMachines', :first)
 create_transition_table('ARModelWithMultipleStateMachines', :second)
 create_transition_table('ARModelWithMultipleStateMachines', :third)
 create_transition_table('ARResource', :state, polymorphic: true)
+create_transition_table('ARModelDescendantWithOwnStateMachines', :state)

@@ -1,0 +1,19 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Change to dummy app directory for Rails context
+Dir.chdir(File.expand_path('../test/dummy', __dir__))
+
+# Load Rails app
+ENV['RAILS_ENV'] = 'test'
+require_relative '../test/dummy/config/environment'
+
+# Change back to gem root for test files
+Dir.chdir(File.expand_path('..', __dir__))
+
+# Load and run tests
+$LOAD_PATH.unshift(File.expand_path('../lib', __dir__))
+$LOAD_PATH.unshift(File.expand_path('../test', __dir__))
+
+# Run specific generator test
+require_relative 'test/lib/state_machines/audit_trail_generator_test'

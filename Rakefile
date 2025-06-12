@@ -1,9 +1,15 @@
-require 'bundler/gem_tasks'
-require "rspec/core/rake_task"
+# frozen_string_literal: true
 
-RSpec::Core::RakeTask.new(:spec) do |task|
-  task.pattern = "./spec/**/*_spec.rb"
-  task.rspec_opts = ['--color']
+require 'bundler/gem_tasks'
+require 'rake/testtask'
+require 'rubocop/rake_task'
+
+Rake::TestTask.new(:test) do |task|
+  task.libs << 'spec'
+  task.test_files = FileList['spec/**/*_test.rb']
+  task.verbose = true
 end
 
-task :default => :spec
+RuboCop::RakeTask.new
+
+task default: %i[rubocop test]

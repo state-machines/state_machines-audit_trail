@@ -1,9 +1,10 @@
 {
-  "release-type": "ruby",
   "packages": {
     ".": {
       "release-type": "ruby",
-      "package-name": "state_machines-audit_trail"
+      "package-name": "state_machines-audit_trail",
+      "version-file": "lib/state_machines/audit_trail/version.rb",
+      "bump-patch-for-minor-pre-major": true
     }
   }
 }

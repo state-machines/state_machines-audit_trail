@@ -3,39 +3,43 @@ require 'active_record'
 ### Setup test database
 ActiveRecord::Base.establish_connection(:adapter => 'sqlite3', :database => ':memory:')
 
-class ARModelStateTransition < ActiveRecord::Base
-  belongs_to :ar_model
+class ApplicationRecord < ActiveRecord::Base
+  self.abstract_class = true
 end
 
-class ARModelWithNamespaceFooStateTransition < ActiveRecord::Base
-  belongs_to :ar_model_with_namespace
+class ARModelStateTransition < ApplicationRecord
+  belongs_to :ar_model, class_name: 'ARModel'
 end
 
-class ARModelNoInitialStateTransition < ActiveRecord::Base
-  belongs_to :ar_model_no_initial
+class ARModelWithNamespaceFooStateTransition < ApplicationRecord
+  belongs_to :ar_model_with_namespace, class_name: 'ARModelWithNamespace'
 end
 
-class ARModelWithContextStateTransition < ActiveRecord::Base
-  belongs_to :ar_model_with_context
+class ARModelNoInitialStateTransition < ApplicationRecord
+  belongs_to :ar_model_no_initial, class_name: 'ARModelNoInitial'
 end
 
-class ARModelWithMultipleContextStateTransition < ActiveRecord::Base
-  belongs_to :ar_model_with_multiple_context
+class ARModelWithContextStateTransition < ApplicationRecord
+  belongs_to :ar_model_with_context, class_name: 'ARModelWithContext'
 end
 
-class ARModelWithMultipleStateMachinesFirstTransition < ActiveRecord::Base
-  belongs_to :ar_model_with_multiple_state_machines
+class ARModelWithMultipleContextStateTransition < ApplicationRecord
+  belongs_to :ar_model_with_multiple_context, class_name: 'ARModelWithMultipleContext'
 end
 
-class ARModelWithMultipleStateMachinesSecondTransition < ActiveRecord::Base
-  belongs_to :ar_model_with_multiple_state_machines
+class ARModelWithMultipleStateMachinesFirstTransition < ApplicationRecord
+  belongs_to :ar_model_with_multiple_state_machines, class_name: 'ARModelWithMultipleStateMachines'
 end
 
-class ARModelWithMultipleStateMachinesThirdTransition < ActiveRecord::Base
-  belongs_to :ar_model_with_multiple_state_machines
+class ARModelWithMultipleStateMachinesSecondTransition < ApplicationRecord
+  belongs_to :ar_model_with_multiple_state_machines, class_name: 'ARModelWithMultipleStateMachines'
 end
 
-class ARModel < ActiveRecord::Base
+class ARModelWithMultipleStateMachinesThirdTransition < ApplicationRecord
+  belongs_to :ar_model_with_multiple_state_machines, class_name: 'ARModelWithMultipleStateMachines'
+end
+
+class ARModel < ApplicationRecord
 
   state_machine :state, initial: :waiting do
     audit_trail
@@ -50,7 +54,7 @@ class ARModel < ActiveRecord::Base
   end
 end
 
-class ARModelNoInitial < ActiveRecord::Base
+class ARModelNoInitial < ApplicationRecord
 
   state_machine :state, initial: :waiting do
     audit_trail initial: false
@@ -65,7 +69,7 @@ class ARModelNoInitial < ActiveRecord::Base
   end
 end
 
-class ARModelWithNamespace < ActiveRecord::Base
+class ARModelWithNamespace < ApplicationRecord
 
   state_machine :foo_state, initial: :waiting, namespace: :foo do
     audit_trail
@@ -81,7 +85,7 @@ class ARModelWithNamespace < ActiveRecord::Base
 end
 
 #
-class ARModelWithContext < ActiveRecord::Base
+class ARModelWithContext < ApplicationRecord
   state_machine :state, initial: :waiting do
     audit_trail context: :context
 
@@ -99,7 +103,7 @@ class ARModelWithContext < ActiveRecord::Base
   end
 end
 
-class ARModelWithMultipleContext < ActiveRecord::Base
+class ARModelWithMultipleContext < ApplicationRecord
   state_machine :state, initial: :waiting do
     audit_trail context: [:context, :second_context, :context_with_args]
 
@@ -140,7 +144,7 @@ class ARModelDescendantWithOwnStateMachines < ARModel
   end
 end
 
-class ARModelWithMultipleStateMachines < ActiveRecord::Base
+class ARModelWithMultipleStateMachines < ApplicationRecord
 
   state_machine :first, :initial => :beginning do
     audit_trail
@@ -171,11 +175,11 @@ class ARModelWithMultipleStateMachines < ActiveRecord::Base
   end
 end
 
-class ARResourceStateTransition < ActiveRecord::Base
+class ARResourceStateTransition < ApplicationRecord
   belongs_to :resource, polymorphic: true
 end
 
-class ARFirstModelWithPolymorphicStateTransition < ActiveRecord::Base
+class ARFirstModelWithPolymorphicStateTransition < ApplicationRecord
   state_machine :state, :initial => :pending do
     audit_trail class: ARResourceStateTransition, as: :ar_resource
 
@@ -189,7 +193,7 @@ class ARFirstModelWithPolymorphicStateTransition < ActiveRecord::Base
   end
 end
 
-class ARSecondModelWithPolymorphicStateTransition < ActiveRecord::Base
+class ARSecondModelWithPolymorphicStateTransition < ApplicationRecord
   state_machine :state, :initial => :pending do
     audit_trail class: ARResourceStateTransition, as: :ar_resource
 
@@ -204,11 +208,11 @@ class ARSecondModelWithPolymorphicStateTransition < ActiveRecord::Base
 end
 
 module SomeModule
-  class ARModelStateTransition < ActiveRecord::Base
-    belongs_to :ar_model
+  class ARModelStateTransition < ApplicationRecord
+    belongs_to :ar_model, class_name: 'SomeModule::ARModel'
   end
 
-  class ARModel < ActiveRecord::Base
+  class ARModel < ApplicationRecord
 
     state_machine :state, initial: :waiting do
       audit_trail

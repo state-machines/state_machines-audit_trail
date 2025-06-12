@@ -1,4 +1,4 @@
-[![Code Climate](https://codeclimate.com/github/state-machines/state_machines-audit_trail.svg)](https://codeclimate.com/github/state-machines/state_machines-audit_trail)
+![Build Status](https://github.com/state-machines/state_machines-audit_trail/actions/workflows/ruby.yml/badge.svg)
 
 # state_machines-audit_trail
 Log transitions on a [state_machines gem](https://github.com/state-machines/state_machines) to support auditing and business process analytics.

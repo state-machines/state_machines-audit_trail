@@ -6,8 +6,9 @@ gem "railties", ">= 7.1"
 gem "rubocop"
 gem "rubocop-minitest"
 gem "rubocop-performance"
-gem "sqlite3", "~> 2.1", platforms: [:mri, :rbx]
-gem "activerecord-jdbcsqlite3-adapter", platform: [:jruby, :truffleruby]
 gem "activerecord", "~> 8.0.0"
+gem "sqlite3", "~> 2.1", platforms: [:mri, :rbx]
+gem "state_machines-activerecord"
+gem "activerecord-jdbcsqlite3-adapter", platform: [:jruby, :truffleruby]
 
 gemspec path: "../"

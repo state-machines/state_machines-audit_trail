@@ -25,5 +25,5 @@ jobs:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true
     - name: Run tests
-      run: bin/rails test
+      run: bundle exec rake test
       continue-on-error: true

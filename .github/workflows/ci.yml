@@ -38,6 +38,6 @@ jobs:
         env:
           BUNDLE_GEMFILE: gemfiles/${{ matrix.gemfile }}.gemfile
       - name: Run tests
-        run: bundle exec rake test
+        run: bin/rails test
         env:
           BUNDLE_GEMFILE: gemfiles/${{ matrix.gemfile }}.gemfile

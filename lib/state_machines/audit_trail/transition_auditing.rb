@@ -56,7 +56,8 @@ module StateMachines
         @backend = StateMachines::AuditTrail::Backend.create_for(transition_class, owner_class,
                                                                  options.slice(:context, :as))
 
-        # Initial state logging can be turned off. Very useful for a model with multiple state_machines using a single TransitionState object for logging
+        # Initial state logging can be turned off. Very useful for a model with multiple state_machines
+        # using a single TransitionState object for logging
         if options[:initial] != false && !state_machine.action.nil?
           # Log the initial transition from null => initial (upon object instantiation)
           state_machine.owner_class.after_initialize do |object|

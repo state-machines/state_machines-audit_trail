@@ -17,7 +17,11 @@ class StateMachines::AuditTrail::Backend < Struct.new(:transition_class, :owner_
       # initial state open struct
       namespace = transition.namespace
     end
-    fields = {namespace: namespace, event: transition.event ? transition.event.to_s : nil, from: transition.from, to: transition.to}
+
+    fields = {
+      namespace: namespace, event: transition.event ? transition.event.to_s : nil, from: transition.from, to: transition.to
+    }.reject { |_, value| value.nil? }
+
     [*options[:context]].each { |field|
       fields[field] = resolve_context(object, field, transition)
     }

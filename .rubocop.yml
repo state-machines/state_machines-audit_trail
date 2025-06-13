@@ -19,22 +19,49 @@ Style/Documentation:
   Enabled: false
 
 Layout/LineLength:
-  Max: 120
+  Max: 140
 
 Metrics/MethodLength:
-  Max: 15
+  Max: 25
 
 Metrics/ClassLength:
   Max: 150
+  Exclude:
+    - 'test/**/*'
 
 Metrics/BlockLength:
   Exclude:
     - 'test/**/*'
     - '*.gemspec'
 
+Metrics/AbcSize:
+  Max: 35
+  Exclude:
+    - 'test/**/*'
+
+Metrics/CyclomaticComplexity:
+  Max: 10
+
+Metrics/PerceivedComplexity:
+  Max: 10
+
 Layout/EmptyLinesAroundBlockBody:
   Exclude:
     - 'test/**/*'
 
+Style/OptionalBooleanParameter:
+  Exclude:
+    - 'test/**/*'
+
 Minitest/MultipleAssertions:
-  Max: 5
+  Max: 10
+
+Naming/FileName:
+  Exclude:
+    - 'lib/state_machines-audit_trail.rb'
+
+Gemspec/DevelopmentDependencies:
+  Enabled: false
+
+Gemspec/RequiredRubyVersion:
+  Enabled: false

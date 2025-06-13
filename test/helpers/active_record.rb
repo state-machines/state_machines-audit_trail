@@ -1,7 +1,9 @@
+# frozen_string_literal: true
+
 require 'active_record'
 
 ### Setup test database
-ActiveRecord::Base.establish_connection(:adapter => 'sqlite3', :database => ':memory:')
+ActiveRecord::Base.establish_connection(adapter: 'sqlite3', database: ':memory:')
 
 class ApplicationRecord < ActiveRecord::Base
   self.abstract_class = true
@@ -40,61 +42,57 @@ class ARModelWithMultipleStateMachinesThirdTransition < ApplicationRecord
 end
 
 class ARModel < ApplicationRecord
-
   state_machine :state, initial: :waiting do
     audit_trail
 
     event :start do
-      transition [:waiting, :stopped] => :started
+      transition %i[waiting stopped] => :started
     end
 
     event :stop do
-      transition :started => :stopped
+      transition started: :stopped
     end
   end
 end
 
 class ARModelNoInitial < ApplicationRecord
-
   state_machine :state, initial: :waiting do
     audit_trail initial: false
 
     event :start do
-      transition [:waiting, :stopped] => :started
+      transition %i[waiting stopped] => :started
     end
 
     event :stop do
-      transition :started => :stopped
+      transition started: :stopped
     end
   end
 end
 
 class ARModelWithNamespace < ApplicationRecord
-
   state_machine :foo_state, initial: :waiting, namespace: :foo do
     audit_trail
 
     event :start do
-      transition [:waiting, :stopped] => :started
+      transition %i[waiting stopped] => :started
     end
 
     event :stop do
-      transition :started => :stopped
+      transition started: :stopped
     end
   end
 end
 
-#
 class ARModelWithContext < ApplicationRecord
   state_machine :state, initial: :waiting do
     audit_trail context: :context
 
     event :start do
-      transition [:waiting, :stopped] => :started
+      transition %i[waiting stopped] => :started
     end
 
     event :stop do
-      transition :started => :stopped
+      transition started: :stopped
     end
   end
 
@@ -105,14 +103,14 @@ end
 
 class ARModelWithMultipleContext < ApplicationRecord
   state_machine :state, initial: :waiting do
-    audit_trail context: [:context, :second_context, :context_with_args]
+    audit_trail context: %i[context second_context context_with_args]
 
     event :start do
-      transition [:waiting, :stopped] => :started
+      transition %i[waiting stopped] => :started
     end
 
     event :stop do
-      transition :started => :stopped
+      transition started: :stopped
     end
   end
 
@@ -128,14 +126,16 @@ class ARModelWithMultipleContext < ApplicationRecord
     id = transition.args.last.delete(:id) if transition.args.present?
     id
   end
-
 end
 
 class ARModelDescendant < ARModel
 end
 
+class ARModelDescendantWithOwnStateMachinesStateTransition < ApplicationRecord
+end
+
 class ARModelDescendantWithOwnStateMachines < ARModel
-  state_machine :state, :initial => :new do
+  state_machine :state, initial: :new do
     audit_trail
 
     event :complete do
@@ -145,12 +145,11 @@ class ARModelDescendantWithOwnStateMachines < ARModel
 end
 
 class ARModelWithMultipleStateMachines < ApplicationRecord
-
-  state_machine :first, :initial => :beginning do
+  state_machine :first, initial: :beginning do
     audit_trail
 
     event :begin_first do
-      transition :beginning => :end
+      transition beginning: :end
     end
   end
 
@@ -162,7 +161,7 @@ class ARModelWithMultipleStateMachines < ApplicationRecord
     end
   end
 
-  state_machine :third, :action => nil do
+  state_machine :third, action: nil do
     audit_trail
 
     event :begin_third do
@@ -170,39 +169,39 @@ class ARModelWithMultipleStateMachines < ApplicationRecord
     end
 
     event :end_third do
-      transition :beginning_third => :done_third
+      transition beginning_third: :done_third
     end
   end
 end
 
 class ARResourceStateTransition < ApplicationRecord
-  belongs_to :resource, polymorphic: true
+  belongs_to :ar_resource, polymorphic: true
 end
 
 class ARFirstModelWithPolymorphicStateTransition < ApplicationRecord
-  state_machine :state, :initial => :pending do
+  state_machine :state, initial: :pending do
     audit_trail class: ARResourceStateTransition, as: :ar_resource
 
     event :start do
-      transition :pending => :in_progress
+      transition pending: :in_progress
     end
 
     event :finish do
-      transition :in_progress => :complete
+      transition in_progress: :complete
     end
   end
 end
 
 class ARSecondModelWithPolymorphicStateTransition < ApplicationRecord
-  state_machine :state, :initial => :pending do
+  state_machine :state, initial: :pending do
     audit_trail class: ARResourceStateTransition, as: :ar_resource
 
     event :start do
-      transition :pending => :in_progress
+      transition pending: :in_progress
     end
 
     event :finish do
-      transition :in_progress => :complete
+      transition in_progress: :complete
     end
   end
 end
@@ -213,16 +212,15 @@ module SomeModule
   end
 
   class ARModel < ApplicationRecord
-
     state_machine :state, initial: :waiting do
       audit_trail
 
       event :start do
-        transition [:waiting, :stopped] => :started
+        transition %i[waiting stopped] => :started
       end
 
       event :stop do
-        transition :started => :stopped
+        transition started: :stopped
       end
     end
   end
@@ -250,8 +248,8 @@ def create_model_table(owner_class, multiple_state_machines = false, state_colum
   end
 end
 
-
-%w(ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext ARFirstModelWithPolymorphicStateTransition ARSecondModelWithPolymorphicStateTransition).each do |name|
+%w[ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext ARFirstModelWithPolymorphicStateTransition
+   ARSecondModelWithPolymorphicStateTransition].each do |name|
   create_model_table(name.constantize)
 end
 
@@ -262,7 +260,7 @@ def create_transition_table(owner_class_name, state, add_context: false, polymor
   class_name = "#{owner_class_name}#{state.to_s.camelize}Transition"
   ActiveRecord::Base.connection.create_table(class_name.tableize) do |t|
 
-    t.references "#{owner_class_name.demodulize.underscore}", index: false, polymorphic: polymorphic
+    t.references owner_class_name.demodulize.underscore.to_s, index: false, polymorphic: polymorphic
     # t.integer owner_class_name.foreign_key
     t.string :namespace
     t.string :event
@@ -276,14 +274,15 @@ def create_transition_table(owner_class_name, state, add_context: false, polymor
   end
 end
 
-%w(ARModel ARModelNoInitial).each do |name|
+%w[ARModel ARModelNoInitial].each do |name|
   create_transition_table(name, :state)
 end
 
-create_transition_table("ARModelWithNamespace", :foo_state, add_context: false)
-create_transition_table("ARModelWithContext", :state, add_context: true)
-create_transition_table("ARModelWithMultipleContext", :state, add_context: true)
-create_transition_table("ARModelWithMultipleStateMachines", :first)
-create_transition_table("ARModelWithMultipleStateMachines", :second)
-create_transition_table("ARModelWithMultipleStateMachines", :third)
-create_transition_table("ARResource", :state, polymorphic: true)
+create_transition_table('ARModelWithNamespace', :foo_state, add_context: false)
+create_transition_table('ARModelWithContext', :state, add_context: true)
+create_transition_table('ARModelWithMultipleContext', :state, add_context: true)
+create_transition_table('ARModelWithMultipleStateMachines', :first)
+create_transition_table('ARModelWithMultipleStateMachines', :second)
+create_transition_table('ARModelWithMultipleStateMachines', :third)
+create_transition_table('ARResource', :state, polymorphic: true)
+create_transition_table('ARModelDescendantWithOwnStateMachines', :state)

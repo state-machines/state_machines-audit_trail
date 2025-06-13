@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 name: release-please
 
 on:
@@ -16,4 +18,3 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: googleapis/release-please-action@v4
-

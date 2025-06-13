@@ -14,12 +14,9 @@ Gem::Specification.new do |s|
   s.license     = 'MIT'
 
   s.add_dependency('state_machines', '>= 0.10.0')
-  s.add_development_dependency('activerecord', '>= 7.1')
   s.add_development_dependency('appraisal')
   s.add_development_dependency('minitest', '~> 5.0')
   s.add_development_dependency('rake')
-  s.add_development_dependency('sqlite3', '>= 2.1')
-  s.add_development_dependency('state_machines-activerecord')
 
   s.files = Dir['{lib}/**/*', 'LICENSE', 'Rakefile', 'README.md']
   s.require_paths = ['lib']

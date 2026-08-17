@@ -18,7 +18,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency('generator_spec')
   s.add_development_dependency('appraisal')
   s.add_development_dependency('sqlite3', '~> 1.7')
-  s.add_development_dependency('activerecord', '>= 7.1')
+  s.add_development_dependency('activerecord', '>= 8.0')
 
   s.files = Dir["{lib}/**/*", "LICENSE", "Rakefile", "README.md"]
   s.test_files = Dir["spec/**/*"]

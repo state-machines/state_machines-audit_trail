@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.0.0](https://github.com/state-machines/state_machines-audit_trail/compare/state_machines-audit_trail/v3.0.0...state_machines-audit_trail/v4.0.0) (2026-08-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* Rails appraisal support now starts at Rails 8.0.
+
+### Features
+
+* drop Rails 7 support ([ce4607d](https://github.com/state-machines/state_machines-audit_trail/commit/ce4607dc3c2f056e9a9a258f20e217755b77ffda))
+
 ## [3.0.0](https://github.com/state-machines/state_machines-audit_trail/compare/state_machines-audit_trail/v2.1.0...state_machines-audit_trail/v3.0.0) (2025-06-12)
 
 

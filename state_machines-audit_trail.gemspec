@@ -11,6 +11,8 @@ Gem::Specification.new do |s|
   s.description = %q{Log transitions on a state_machines to support auditing and business process analytics.}
   s.license     = 'MIT'
 
+  s.required_ruby_version = '>= 4.0'
+
   s.add_runtime_dependency('state_machines', '>= 0.10.0')
   s.add_development_dependency('state_machines-activerecord')
   s.add_development_dependency('rake')
@@ -18,7 +20,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency('generator_spec')
   s.add_development_dependency('appraisal')
   s.add_development_dependency('sqlite3', '~> 1.7')
-  s.add_development_dependency('activerecord', '>= 8.0')
+  s.add_development_dependency('activerecord', '>= 8.1')
 
   s.files = Dir["{lib}/**/*", "LICENSE", "Rakefile", "README.md"]
   s.test_files = Dir["spec/**/*"]

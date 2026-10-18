@@ -1,9 +1,3 @@
-appraise 'rails_8.0' do
-  gem "sqlite3", platforms: [:mri, :rbx]
-  gem "activerecord-jdbcsqlite3-adapter", platform: [:jruby, :truffleruby]
-  gem "activerecord", '~> 8.0.0'
-end
-
 appraise 'rails_8.1' do
   gem "sqlite3", platforms: [:mri, :rbx]
   gem "activerecord-jdbcsqlite3-adapter", platform: [:jruby, :truffleruby]

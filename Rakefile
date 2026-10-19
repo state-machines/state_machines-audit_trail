@@ -3,8 +3,9 @@
 require 'bundler/gem_tasks'
 require 'rake/testtask'
 require 'rubocop/rake_task'
+require 'shellwords'
 
-Rake::TestTask.new(:test) do |task|
+Rake::TestTask.new(:minitest) do |task|
   task.libs.push 'lib'
   task.libs.push 'test'
   task.pattern = 'test/**/*_test.rb'
@@ -17,4 +18,13 @@ load 'rails/tasks/engine.rake' if File.exist?(APP_RAKEFILE)
 
 RuboCop::RakeTask.new
 
-task default: %i[rubocop test]
+desc 'Run the test suite (padded_cell on CRuby, plain Minitest elsewhere)'
+if RUBY_ENGINE == 'ruby'
+  task :test do
+    sh 'padded_cell', *Shellwords.split(ENV.fetch('TESTOPTS', ''))
+  end
+else
+  task test: :minitest
+end
+
+task default: :test

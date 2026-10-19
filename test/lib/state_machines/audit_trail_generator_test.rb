@@ -4,13 +4,22 @@ require 'test_helper'
 require 'rails/generators'
 require 'rails/generators/test_case'
 require 'state_machines/audit_trail_generator'
+require 'tmpdir'
 
 class AuditTrailGeneratorTest < Rails::Generators::TestCase
   tests StateMachines::AuditTrailGenerator
-  destination File.expand_path('../../../tmp', __dir__)
 
+  # Each test gets its own destination_root via Dir.mktmpdir rather than a
+  # single shared directory. padded_cell runs tests concurrently (each in
+  # its own forked worker), so a fixed shared path would let sibling
+  # processes race on prepare_destination/generated files.
   setup do
+    self.destination_root = Dir.mktmpdir('state_machines-audit_trail-generator-test')
     prepare_destination
+  end
+
+  teardown do
+    FileUtils.remove_entry(destination_root) if destination_root && File.exist?(destination_root)
   end
 
   def test_generator_with_default_state_attribute

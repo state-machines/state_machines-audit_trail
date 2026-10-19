@@ -9,6 +9,10 @@ require 'state_machines-activerecord'
 require 'helpers/active_record'
 
 class ActiveRecordBackendTest < Minitest::Test
+  def setup
+    AuditTrailTestSchema.create!
+  end
+
   def test_initial_option_default_new_object
     target = ARModel.new
     # initial transition is built but not saved

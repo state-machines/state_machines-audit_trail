@@ -229,60 +229,78 @@ end
 #
 # Generate tables
 #
-def create_model_table(owner_class, multiple_state_machines = false, state_column = nil)
-  ActiveRecord::Base.connection.create_table(owner_class.name.tableize) do |t|
-    if state_column.presence
-      t.string state_column
-    else
-      t.string :state unless multiple_state_machines
-    end
-    t.string :type
+# NOTE: schema creation is deferred to AuditTrailTestSchema.create! (called
+# from each test's #setup) rather than run here at require-time. Under
+# padded_cell, requires happen once in the parent process before it forks a
+# fresh worker per test; ActiveRecord transparently reconnects after fork and
+# a fresh :memory: SQLite connection is an empty database, so any tables
+# created here at load time would silently vanish by the time a forked test
+# runs. Creating them in #setup guarantees they run inside the (possibly
+# forked) process that actually executes the test.
+module AuditTrailTestSchema
+  class << self
+    def create_model_table(owner_class, multiple_state_machines = false, state_column = nil)
+      ActiveRecord::Base.connection.create_table(owner_class.name.tableize) do |t|
+        if state_column.presence
+          t.string state_column
+        else
+          t.string :state unless multiple_state_machines
+        end
+        t.string :type
 
-    if multiple_state_machines
-      t.string :first
-      t.string :second
-      t.string :third
+        if multiple_state_machines
+          t.string :first
+          t.string :second
+          t.string :third
+        end
+
+        t.timestamps null: false
+      end
     end
 
-    t.timestamps null: false
+    def create_transition_table(owner_class_name, state, add_context: false, polymorphic: false)
+      class_name = "#{owner_class_name}#{state.to_s.camelize}Transition"
+      ActiveRecord::Base.connection.create_table(class_name.tableize) do |t|
+        t.references owner_class_name.demodulize.underscore.to_s, index: false, polymorphic: polymorphic
+        # t.integer owner_class_name.foreign_key
+        t.string :namespace
+        t.string :event
+        t.string :from
+        t.string :to
+
+        t.string :context if add_context
+        t.string :second_context if add_context
+        t.string :context_with_args if add_context
+        t.datetime :created_at
+      end
+    end
+
+    def create!
+      return if @created
+
+      %w[ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext
+         ARFirstModelWithPolymorphicStateTransition
+         ARSecondModelWithPolymorphicStateTransition].each do |name|
+        create_model_table(name.constantize)
+      end
+
+      create_model_table(ARModelWithNamespace, false, :foo_state)
+      create_model_table(ARModelWithMultipleStateMachines, true)
+
+      %w[ARModel ARModelNoInitial].each do |name|
+        create_transition_table(name, :state)
+      end
+
+      create_transition_table('ARModelWithNamespace', :foo_state, add_context: false)
+      create_transition_table('ARModelWithContext', :state, add_context: true)
+      create_transition_table('ARModelWithMultipleContext', :state, add_context: true)
+      create_transition_table('ARModelWithMultipleStateMachines', :first)
+      create_transition_table('ARModelWithMultipleStateMachines', :second)
+      create_transition_table('ARModelWithMultipleStateMachines', :third)
+      create_transition_table('ARResource', :state, polymorphic: true)
+      create_transition_table('ARModelDescendantWithOwnStateMachines', :state)
+
+      @created = true
+    end
   end
 end
-
-%w[ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext ARFirstModelWithPolymorphicStateTransition
-   ARSecondModelWithPolymorphicStateTransition].each do |name|
-  create_model_table(name.constantize)
-end
-
-create_model_table(ARModelWithNamespace, false, :foo_state)
-create_model_table(ARModelWithMultipleStateMachines, true)
-
-def create_transition_table(owner_class_name, state, add_context: false, polymorphic: false)
-  class_name = "#{owner_class_name}#{state.to_s.camelize}Transition"
-  ActiveRecord::Base.connection.create_table(class_name.tableize) do |t|
-
-    t.references owner_class_name.demodulize.underscore.to_s, index: false, polymorphic: polymorphic
-    # t.integer owner_class_name.foreign_key
-    t.string :namespace
-    t.string :event
-    t.string :from
-    t.string :to
-
-    t.string :context if add_context
-    t.string :second_context if add_context
-    t.string :context_with_args if add_context
-    t.datetime :created_at
-  end
-end
-
-%w[ARModel ARModelNoInitial].each do |name|
-  create_transition_table(name, :state)
-end
-
-create_transition_table('ARModelWithNamespace', :foo_state, add_context: false)
-create_transition_table('ARModelWithContext', :state, add_context: true)
-create_transition_table('ARModelWithMultipleContext', :state, add_context: true)
-create_transition_table('ARModelWithMultipleStateMachines', :first)
-create_transition_table('ARModelWithMultipleStateMachines', :second)
-create_transition_table('ARModelWithMultipleStateMachines', :third)
-create_transition_table('ARResource', :state, polymorphic: true)
-create_transition_table('ARModelDescendantWithOwnStateMachines', :state)

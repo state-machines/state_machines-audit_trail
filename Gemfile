@@ -12,3 +12,7 @@ gem 'rubocop-performance'
 gem 'activerecord', '>= 8.1'
 gem 'sqlite3', '~> 2.1'
 gem 'state_machines-activerecord'
+
+platforms :mri do
+  gem 'padded_cell', '~> 0.2'
+end

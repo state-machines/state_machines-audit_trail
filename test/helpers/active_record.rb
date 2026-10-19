@@ -25,6 +25,10 @@ class ARModelWithoutNamespaceColumnStateTransition < ApplicationRecord
   belongs_to :ar_model_without_namespace_column, class_name: 'ARModelWithoutNamespaceColumn'
 end
 
+class ARModelConditionalAuditTrailStateTransition < ApplicationRecord
+  belongs_to :ar_model_conditional_audit_trail, class_name: 'ARModelConditionalAuditTrail'
+end
+
 class ARModelWithContextStateTransition < ApplicationRecord
   belongs_to :ar_model_with_context, class_name: 'ARModelWithContext'
 end
@@ -88,6 +92,29 @@ class ARModelWithoutNamespaceColumn < ApplicationRecord
     event :stop do
       transition started: :stopped
     end
+  end
+end
+
+class ARModelConditionalAuditTrail < ApplicationRecord
+  state_machine :state, initial: :waiting do
+    # Only log a transition once the model has reached :stopped. This exercises
+    # the audit_trail `if:` option for both the initial-transition path
+    # (after_initialize) and the regular per-event transition path.
+    audit_trail if: :should_log_transition?
+
+    event :start do
+      transition %i[waiting stopped] => :started
+    end
+
+    event :stop do
+      transition started: :stopped
+    end
+  end
+
+  private
+
+  def should_log_transition?
+    state == 'stopped'
   end
 end
 
@@ -324,6 +351,7 @@ module AuditTrailTestSchema
 
       %w[ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext
          ARModelWithoutNamespaceColumn
+         ARModelConditionalAuditTrail
          ARFirstModelWithPolymorphicStateTransition
          ARSecondModelWithPolymorphicStateTransition].each do |name|
         create_model_table(name.constantize)
@@ -333,7 +361,7 @@ module AuditTrailTestSchema
       create_model_table(ARModelWithMultipleStateMachines, true)
       create_model_table(ARModelWithContextBasedOnOtherField, false, :state, :other_field)
 
-      %w[ARModel ARModelNoInitial].each do |name|
+      %w[ARModel ARModelNoInitial ARModelConditionalAuditTrail].each do |name|
         create_transition_table(name, :state)
       end
 

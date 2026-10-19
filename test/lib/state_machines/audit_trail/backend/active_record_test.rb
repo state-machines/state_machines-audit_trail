@@ -47,15 +47,20 @@ class ActiveRecordBackendTest < Minitest::Test
   end
 
   def test_destroying_owner_should_destroy_state_transitions
-    target = ARModel.create!
+    # Uses ARModelWithContext (rather than ARModel) because other tests in this file
+    # deliberately call create_for(ARModelWithContextStateTransition, ARModel) with a
+    # mismatched owner/transition pair to exercise create_for's naming logic. That leaves
+    # a bogus has_many on ARModel for the remainder of the process. ARModelWithContext is
+    # never touched by such a mismatched pairing, so this assertion isn't order-dependent.
+    target = ARModelWithContext.create!
     target.start!
     target_id = target.id
 
-    assert_equal 2, ARModelStateTransition.where(ar_model_id: target_id).count
+    assert_equal 2, ARModelWithContextStateTransition.where(ar_model_with_context_id: target_id).count
 
     target.destroy
 
-    assert_equal 0, ARModelStateTransition.where(ar_model_id: target_id).count
+    assert_equal 0, ARModelWithContextStateTransition.where(ar_model_with_context_id: target_id).count
   end
 
   def test_initial_option_false_skips_log

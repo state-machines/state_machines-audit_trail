@@ -15,10 +15,10 @@ Gem::Specification.new do |s|
 
   s.required_ruby_version = '>= 4.0'
 
-  s.add_runtime_dependency('state_machines', '>= 0.10.0')
-  s.add_development_dependency('rake')
-  s.add_development_dependency('minitest', '~> 6.0')
+  s.add_dependency('state_machines', '>= 0.10.0')
   s.add_development_dependency('appraisal')
+  s.add_development_dependency('minitest', '~> 6.0')
+  s.add_development_dependency('rake')
 
   s.files = Dir['{lib}/**/*', 'LICENSE', 'Rakefile', 'README.md']
   s.require_paths = ['lib']

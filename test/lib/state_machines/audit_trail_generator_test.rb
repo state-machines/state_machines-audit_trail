@@ -73,7 +73,8 @@ class AuditTrailGeneratorTest < Rails::Generators::TestCase
   private
 
   def assert_migration(file, &)
-    migration_file = Dir[File.join(destination_root, file.gsub(/^\d+_/, '*'))].first
+    pattern = File.join(File.dirname(file), "*_#{File.basename(file)}")
+    migration_file = Dir[File.join(destination_root, pattern)].first
 
     assert migration_file, "Expected migration #{file} to exist"
     assert_file(migration_file, &)

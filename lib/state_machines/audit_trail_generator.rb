@@ -20,7 +20,10 @@ module StateMachines
               'created_at:timestamp',
               '--no-timestamps',
               '--no-fixtures']
-      generate 'model', args.join(' ')
+      # inline: true runs the model generator in-process (via Rails::Command.invoke)
+      # instead of shelling out to `bin/rails`, which isn't guaranteed to exist
+      # relative to the destination_root used by generator tests.
+      generate 'model', args.join(' '), inline: true
     end
 
     protected

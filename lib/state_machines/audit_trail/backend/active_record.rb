@@ -14,6 +14,8 @@ module StateMachines
         end
 
         def persist(object, fields)
+          fields.delete(:namespace) unless namespace_column_present?(object)
+
           # Let ActiveRecord manage the timestamp for us so it does the right thing with regards to timezones.
           if object.new_record?
             object.send(@association).build(fields)
@@ -22,6 +24,13 @@ module StateMachines
           end
 
           nil
+        end
+
+        private
+
+        # Does the namespace column exist on the transition table for the provided object?
+        def namespace_column_present?(object)
+          object.class.reflect_on_association(@association).klass.column_names.include?('namespace')
         end
       end
     end

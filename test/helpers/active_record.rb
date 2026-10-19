@@ -21,6 +21,10 @@ class ARModelNoInitialStateTransition < ApplicationRecord
   belongs_to :ar_model_no_initial, class_name: 'ARModelNoInitial'
 end
 
+class ARModelWithoutNamespaceColumnStateTransition < ApplicationRecord
+  belongs_to :ar_model_without_namespace_column, class_name: 'ARModelWithoutNamespaceColumn'
+end
+
 class ARModelWithContextStateTransition < ApplicationRecord
   belongs_to :ar_model_with_context, class_name: 'ARModelWithContext'
 end
@@ -58,6 +62,20 @@ end
 class ARModelNoInitial < ApplicationRecord
   state_machine :state, initial: :waiting do
     audit_trail initial: false
+
+    event :start do
+      transition %i[waiting stopped] => :started
+    end
+
+    event :stop do
+      transition started: :stopped
+    end
+  end
+end
+
+class ARModelWithoutNamespaceColumn < ApplicationRecord
+  state_machine :state, initial: :waiting do
+    audit_trail
 
     event :start do
       transition %i[waiting stopped] => :started
@@ -258,12 +276,12 @@ module AuditTrailTestSchema
       end
     end
 
-    def create_transition_table(owner_class_name, state, add_context: false, polymorphic: false)
+    def create_transition_table(owner_class_name, state, add_context: false, polymorphic: false, add_namespace: true)
       class_name = "#{owner_class_name}#{state.to_s.camelize}Transition"
       ActiveRecord::Base.connection.create_table(class_name.tableize) do |t|
         t.references owner_class_name.demodulize.underscore.to_s, index: false, polymorphic: polymorphic
         # t.integer owner_class_name.foreign_key
-        t.string :namespace
+        t.string :namespace if add_namespace
         t.string :event
         t.string :from
         t.string :to
@@ -279,6 +297,7 @@ module AuditTrailTestSchema
       return if @created
 
       %w[ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext
+         ARModelWithoutNamespaceColumn
          ARFirstModelWithPolymorphicStateTransition
          ARSecondModelWithPolymorphicStateTransition].each do |name|
         create_model_table(name.constantize)
@@ -291,6 +310,7 @@ module AuditTrailTestSchema
         create_transition_table(name, :state)
       end
 
+      create_transition_table('ARModelWithoutNamespaceColumn', :state, add_namespace: false)
       create_transition_table('ARModelWithNamespace', :foo_state, add_context: false)
       create_transition_table('ARModelWithContext', :state, add_context: true)
       create_transition_table('ARModelWithMultipleContext', :state, add_context: true)

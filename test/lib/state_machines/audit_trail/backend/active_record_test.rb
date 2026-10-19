@@ -58,6 +58,27 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_equal 0, target.ar_model_no_initial_state_transitions.count
   end
 
+  def test_transition_table_without_namespace_column_does_not_raise
+    target = ARModelWithoutNamespaceColumn.new
+    # initial transition is built but not saved
+    assert_predicate target, :new_record?
+    assert_equal 0, target.ar_model_without_namespace_column_state_transitions.count
+
+    target.save!
+
+    refute_predicate target, :new_record?
+    assert_equal 1, target.ar_model_without_namespace_column_state_transitions.count
+    state_transition = target.ar_model_without_namespace_column_state_transitions.first
+
+    assert_transition state_transition, nil, nil, 'waiting'
+    refute_includes ARModelWithoutNamespaceColumnStateTransition.column_names, 'namespace'
+
+    target.start!
+
+    assert_equal :started, target.state_name
+    assert_equal 2, target.ar_model_without_namespace_column_state_transitions.count
+  end
+
   def test_namespaced_state_machine_should_log_namespace
     target = ARModelWithNamespace.create!
 

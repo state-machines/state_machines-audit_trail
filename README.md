@@ -18,8 +18,6 @@ For more information read [Why developers should be force-fed state machines](ht
 Note: while the state_machines gem integrates with multiple ORMs, this plugin is currently limited to the following ORM backends:
 
 *   ActiveRecord
-*   Mongoid
-
 
 It should be easy to add new backends by looking at the implementation of the current backends. Pull requests are welcome!
 
@@ -31,11 +29,8 @@ First, make the gem available by adding it to your `Gemfile`, and run `bundle in
 # this gem
 gem 'state_machines-audit_trail'
 
-# required runtime dependency for your ORM; either
+# required runtime dependency for your ORM
 gem 'state_machines-activerecord'
-
-# OR
-gem 'state_machines-mongoid'
 ```
 
 ## Usage
@@ -174,7 +169,6 @@ Conversion from the original code to `state_machines` by [AlienFast](http://alie
 
 ### Original Authors
 [The original plugin](https://github.com/wvanbergen/state_machine-audit_trail) was written by Jesse Storimer and Willem van Bergen for Shopify.
-Mongoid support was contributed by [Siddharth](https://github.com/svs).
 
 ### License
 Released under the MIT license (see LICENSE).

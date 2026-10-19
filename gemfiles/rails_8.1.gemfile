@@ -2,8 +2,17 @@
 
 source "https://rubygems.org"
 
-gem "sqlite3", platforms: [:mri, :rbx]
-gem "activerecord-jdbcsqlite3-adapter", platform: [:jruby, :truffleruby]
+gem "railties", ">= 7.1"
+gem "rubocop"
+gem "rubocop-minitest"
+gem "rubocop-performance"
 gem "activerecord", "~> 8.1.0"
+gem "sqlite3", platforms: [:mri, :rbx]
+gem "state_machines-activerecord"
+gem "activerecord-jdbcsqlite3-adapter", platform: [:jruby, :truffleruby]
+
+platforms :mri do
+  gem "padded_cell", "~> 0.2"
+end
 
 gemspec path: "../"

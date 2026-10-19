@@ -2,7 +2,6 @@
 
 require 'bundler/gem_tasks'
 require 'rake/testtask'
-require 'rubocop/rake_task'
 require 'shellwords'
 
 Rake::TestTask.new(:minitest) do |task|
@@ -16,7 +15,15 @@ end
 APP_RAKEFILE = File.expand_path('test/dummy/Rakefile', __dir__)
 load 'rails/tasks/engine.rake' if File.exist?(APP_RAKEFILE)
 
-RuboCop::RakeTask.new
+begin
+  # rubocop is only a dependency of the root Gemfile, not of the gemspec or
+  # the Appraisal-generated gemfiles/*.gemfile, so it isn't available when
+  # running `bundle exec rake` under BUNDLE_GEMFILE=gemfiles/rails_*.gemfile.
+  require 'rubocop/rake_task'
+  RuboCop::RakeTask.new
+rescue LoadError
+  nil
+end
 
 desc 'Run the test suite (padded_cell on CRuby, plain Minitest elsewhere)'
 if RUBY_ENGINE == 'ruby'

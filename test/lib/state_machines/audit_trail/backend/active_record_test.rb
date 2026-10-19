@@ -358,6 +358,24 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_equal 'completed', m.state
   end
 
+  def test_context_is_resolved_at_save_time_not_at_new_time
+    target = ARModelWithContextBasedOnOtherField.new(other_field: 'initial_other_field_value')
+    # initial transition is built but not saved, so mutating the attribute
+    # afterwards must still affect what gets logged.
+    assert_predicate target, :new_record?
+    assert_equal 0, target.ar_model_with_context_based_on_other_field_state_transitions.count
+
+    target.other_field = 'real_other_field_value'
+    target.save!
+
+    last_transition = ARModelWithContextBasedOnOtherFieldStateTransition
+                      .where(ar_model_with_context_based_on_other_field_id: target.id).last
+
+    refute_nil last_transition
+    assert_equal 'real_other_field_value', last_transition.context
+    refute_equal 'initial_other_field_value', last_transition.context
+  end
+
   def test_polymorphic_creates_polymorphic_state_transitions
     m1 = ARFirstModelWithPolymorphicStateTransition.create!
     m2 = ARSecondModelWithPolymorphicStateTransition.create!

@@ -59,15 +59,23 @@ module StateMachines
         # Initial state logging can be turned off. Very useful for a model with multiple state_machines
         # using a single TransitionState object for logging
         if options[:initial] != false && !state_machine.action.nil?
-          # Log the initial transition from null => initial (upon object instantiation)
-          state_machine.owner_class.after_initialize do |object|
-            if state_machine.backend.new_record? object
-              current_state = object.send(state_machine.attribute)
-              unless current_state.nil?
-                state_machine.backend.log(object,
-                                          InitialTransition.new(namespace: state_machine.namespace,
-                                                                to: current_state))
-              end
+          # Log the initial transition from null => initial.
+          #
+          # This hook runs on `before_create` (i.e. right before the object is actually
+          # INSERTed) rather than `after_initialize`. `after_initialize` fires at `.new`
+          # time, before user code has a chance to mutate any attribute that a `:context`
+          # option might depend on - resolving context there bakes in stale values (see
+          # issue #22). `before_create` only ever fires once, immediately before the first
+          # successful INSERT of a new record, so it naturally never fires for records
+          # loaded from the database, and still only logs the initial transition exactly
+          # once per object - same guarantee `after_initialize` + the new_record? guard
+          # provided, just resolved at the right time.
+          state_machine.owner_class.before_create do |object|
+            current_state = object.send(state_machine.attribute)
+            unless current_state.nil?
+              state_machine.backend.log(object,
+                                        InitialTransition.new(namespace: state_machine.namespace,
+                                                              to: current_state))
             end
           end
         end

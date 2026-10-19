@@ -29,6 +29,10 @@ class ARModelWithMultipleContextStateTransition < ApplicationRecord
   belongs_to :ar_model_with_multiple_context, class_name: 'ARModelWithMultipleContext'
 end
 
+class ARModelWithContextBasedOnOtherFieldStateTransition < ApplicationRecord
+  belongs_to :ar_model_with_context_based_on_other_field, class_name: 'ARModelWithContextBasedOnOtherField'
+end
+
 class ARModelWithMultipleStateMachinesFirstTransition < ApplicationRecord
   belongs_to :ar_model_with_multiple_state_machines, class_name: 'ARModelWithMultipleStateMachines'
 end
@@ -125,6 +129,26 @@ class ARModelWithMultipleContext < ApplicationRecord
   def context_with_args(transition)
     id = transition.args.last.delete(:id) if transition.args.present?
     id
+  end
+end
+
+class ARModelWithContextBasedOnOtherField < ApplicationRecord
+  state_machine :state, initial: :waiting do
+    audit_trail context: :context
+
+    event :start do
+      transition %i[waiting stopped] => :started
+    end
+
+    event :stop do
+      transition started: :stopped
+    end
+  end
+
+  # Context intentionally reads a mutable attribute so tests can prove it is
+  # resolved at save time, not at `.new` time (issue #22).
+  def context
+    other_field
   end
 end
 
@@ -239,7 +263,7 @@ end
 # forked) process that actually executes the test.
 module AuditTrailTestSchema
   class << self
-    def create_model_table(owner_class, multiple_state_machines = false, state_column = nil)
+    def create_model_table(owner_class, multiple_state_machines = false, state_column = nil, additional_field = nil)
       ActiveRecord::Base.connection.create_table(owner_class.name.tableize) do |t|
         if state_column.presence
           t.string state_column
@@ -253,6 +277,8 @@ module AuditTrailTestSchema
           t.string :second
           t.string :third
         end
+
+        t.string additional_field if additional_field
 
         t.timestamps null: false
       end
@@ -286,6 +312,7 @@ module AuditTrailTestSchema
 
       create_model_table(ARModelWithNamespace, false, :foo_state)
       create_model_table(ARModelWithMultipleStateMachines, true)
+      create_model_table(ARModelWithContextBasedOnOtherField, false, :state, :other_field)
 
       %w[ARModel ARModelNoInitial].each do |name|
         create_transition_table(name, :state)
@@ -294,6 +321,7 @@ module AuditTrailTestSchema
       create_transition_table('ARModelWithNamespace', :foo_state, add_context: false)
       create_transition_table('ARModelWithContext', :state, add_context: true)
       create_transition_table('ARModelWithMultipleContext', :state, add_context: true)
+      create_transition_table('ARModelWithContextBasedOnOtherField', :state, add_context: true)
       create_transition_table('ARModelWithMultipleStateMachines', :first)
       create_transition_table('ARModelWithMultipleStateMachines', :second)
       create_transition_table('ARModelWithMultipleStateMachines', :third)

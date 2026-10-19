@@ -46,6 +46,18 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_transition state_transition, nil, nil, 'waiting'
   end
 
+  def test_destroying_owner_should_destroy_state_transitions
+    target = ARModel.create!
+    target.start!
+    target_id = target.id
+
+    assert_equal 2, ARModelStateTransition.where(ar_model_id: target_id).count
+
+    target.destroy
+
+    assert_equal 0, ARModelStateTransition.where(ar_model_id: target_id).count
+  end
+
   def test_initial_option_false_skips_log
     target = ARModelNoInitial.new
     # initial transition is not-built

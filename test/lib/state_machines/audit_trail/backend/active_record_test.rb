@@ -168,11 +168,8 @@ class ActiveRecordBackendTest < Minitest::Test
   def test_single_state_machine_created_model_should_do_nothing_on_failed_transition
     target = ARModelWithContext.create!
     initial_count = ARModelWithContextStateTransition.count
-    begin
-      target.stop
-    rescue StandardError
-      nil
-    end
+
+    refute target.stop
 
     assert_equal initial_count, ARModelWithContextStateTransition.count
   end

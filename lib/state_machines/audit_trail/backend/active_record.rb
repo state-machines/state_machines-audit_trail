@@ -13,17 +13,18 @@ module StateMachines
           owner_class.has_many(@association, **assoc_options) unless owner_class.reflect_on_association(@association)
         end
 
-        def persist(object, fields)
+        def persist(object, fields, pending: nil)
           fields.delete(:namespace) unless namespace_column_present?(object)
 
           # Let ActiveRecord manage the timestamp for us so it does the right thing with regards to timezones.
-          if object.new_record?
+          if pending
+            pending.assign_attributes(fields)
+            pending
+          elsif object.new_record?
             object.send(@association).build(fields)
           else
             object.send(@association).create!(fields)
           end
-
-          nil
         end
 
         private

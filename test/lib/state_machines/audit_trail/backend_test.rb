@@ -16,7 +16,7 @@ class BackendTest < Minitest::Test
   def test_log_removes_all_nil_attributes_from_fields
     backend = StateMachines::AuditTrail::Backend.new(ARModelWithContextStateTransition, ARModel, {})
 
-    def backend.persist(object, fields)
+    def backend.persist(object, fields, **)
       @captured = [object, fields]
     end
 

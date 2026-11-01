@@ -214,6 +214,33 @@ class ARModelWithValidatedContext < ApplicationRecord
   end
 end
 
+class ARModelAbortingFirstCreateStateTransition < ApplicationRecord
+  belongs_to :ar_model_aborting_first_create, class_name: 'ARModelAbortingFirstCreate'
+end
+
+class ARModelAbortingFirstCreate < ApplicationRecord
+  attr_accessor :abort_create
+
+  state_machine :state, initial: :waiting do
+    audit_trail context: :context
+
+    event :start do
+      transition waiting: :started
+    end
+  end
+
+  before_create do
+    if abort_create
+      self.abort_create = false
+      throw :abort
+    end
+  end
+
+  def context
+    other_field
+  end
+end
+
 class ARModelDescendant < ARModel
 end
 
@@ -375,6 +402,7 @@ module AuditTrailTestSchema
       create_model_table(ARModelWithNamespace, false, :foo_state)
       create_model_table(ARModelWithMultipleStateMachines, true)
       create_model_table(ARModelWithContextBasedOnOtherField, false, :state, :other_field)
+      create_model_table(ARModelAbortingFirstCreate, false, :state, :other_field)
 
       %w[ARModel ARModelNoInitial ARModelConditionalAuditTrail].each do |name|
         create_transition_table(name, :state)
@@ -383,7 +411,7 @@ module AuditTrailTestSchema
       create_transition_table('ARModelWithoutNamespaceColumn', :state, add_namespace: false)
       create_transition_table('ARModelWithNamespace', :foo_state, add_context: false)
       %w[ARModelWithContext ARModelWithMultipleContext ARModelWithContextBasedOnOtherField
-         ARModelWithValidatedContext].each do |name|
+         ARModelWithValidatedContext ARModelAbortingFirstCreate].each do |name|
         create_transition_table(name, :state, add_context: true)
       end
       create_transition_table('ARModelWithMultipleStateMachines', :first)

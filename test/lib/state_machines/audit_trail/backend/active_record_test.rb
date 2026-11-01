@@ -422,6 +422,23 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_equal 1, ARModelWithValidatedContextStateTransition.where(ar_model_with_validated_context_id: target.id).count
   end
 
+  def test_retried_create_logs_the_initial_transition_once
+    target = ARModelAbortingFirstCreate.new(other_field: 'aborted_attempt')
+    target.abort_create = true
+
+    refute target.save
+
+    target.other_field = 'successful_attempt'
+
+    assert target.save
+
+    transitions = ARModelAbortingFirstCreateStateTransition.where(ar_model_aborting_first_create_id: target.id)
+
+    assert_equal 1, transitions.count
+    assert_transition transitions.first, nil, nil, 'waiting'
+    assert_equal 'successful_attempt', transitions.first.context
+  end
+
   def test_polymorphic_creates_polymorphic_state_transitions
     m1 = ARFirstModelWithPolymorphicStateTransition.create!
     m2 = ARSecondModelWithPolymorphicStateTransition.create!

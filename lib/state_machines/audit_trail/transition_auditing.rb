@@ -10,6 +10,8 @@
 module StateMachines
   module AuditTrail
     module TransitionAuditing
+      PENDING_INITIAL_TRANSITIONS = :@state_machines_audit_trail_pending_initial_transitions
+
       class InitialTransition
         attr_reader :namespace, :to
 
@@ -101,7 +103,14 @@ module StateMachines
         should_log_transition = options[:if].nil? || evaluate_method(object, options[:if])
         return unless should_log_transition
 
-        backend.log(object, InitialTransition.new(namespace: namespace, to: current_state))
+        pending = pending_initial_transitions(object)
+        pending[attribute] = backend.log(object, InitialTransition.new(namespace: namespace, to: current_state),
+                                         pending: pending[attribute])
+      end
+
+      def pending_initial_transitions(object)
+        object.instance_variable_get(PENDING_INITIAL_TRANSITIONS) ||
+          object.instance_variable_set(PENDING_INITIAL_TRANSITIONS, {})
       end
 
       def default_transition_class

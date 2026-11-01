@@ -10,7 +10,7 @@ module StateMachines
       #   - object: the object being watched by the state_machines observer
       #   - transition: state machine transition object that state machine passes to after/before transition callbacks
       #
-      def log(object, transition)
+      def log(object, transition, pending: nil)
         namespace = if transition.machine.presence
                       # full transition object
                       transition.machine.namespace
@@ -24,7 +24,7 @@ module StateMachines
           fields[field] = resolve_context(object, field, transition)
         end
 
-        persist(object, fields)
+        persist(object, fields, pending: pending)
       end
 
       #
@@ -49,7 +49,7 @@ module StateMachines
 
       protected
 
-      def persist(_object, _fields)
+      def persist(_object, _fields, **)
         raise 'Not implemented. Implement in a subclass.'
       end
 

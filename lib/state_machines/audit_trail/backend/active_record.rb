@@ -20,7 +20,7 @@ module StateMachines
           if object.new_record?
             object.send(@association).build(fields)
           else
-            object.send(@association).create(fields)
+            object.send(@association).create!(fields)
           end
 
           nil

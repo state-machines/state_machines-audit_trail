@@ -58,6 +58,13 @@ class Subscription < ActiveRecord::Base
 ### That's it!
 `audit_trail` will register an `after_transition` callback that is used to log all transitions including the initial state if there is one.
 
+### Failed audit writes
+
+The audit trail is the complete history of a model's state changes, so a transition is never allowed to succeed without its
+audit entry. If the transition record cannot be written - a validation on your `StateTransition` model, a database
+constraint - the write raises `ActiveRecord::RecordInvalid` and the transition is rolled back with it. On create, an
+unwritable initial transition record fails the `save` and reports the error on the owner object.
+
 ## Upgrading from state_machine-audit_trail
 
 See the wiki, https://github.com/state-machines/state_machines-audit_trail/wiki/Converting-from-former-state_machine-audit_trail-to-state_machines-audit_trail

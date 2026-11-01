@@ -407,6 +407,21 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_equal 'stopped', last_transition.to
   end
 
+  def test_invalid_audit_record_raises_and_rolls_back_the_transition
+    target = ARModelWithValidatedContext.create!
+
+    assert_raises(ActiveRecord::RecordInvalid) { target.start }
+
+    assert_equal 'waiting', target.reload.state
+    assert_equal 0, ARModelWithValidatedContextStateTransition.where(ar_model_with_validated_context_id: target.id).count
+
+    target.context = 'Some context'
+    target.start!
+
+    assert_equal 'started', target.reload.state
+    assert_equal 1, ARModelWithValidatedContextStateTransition.where(ar_model_with_validated_context_id: target.id).count
+  end
+
   def test_polymorphic_creates_polymorphic_state_transitions
     m1 = ARFirstModelWithPolymorphicStateTransition.create!
     m2 = ARSecondModelWithPolymorphicStateTransition.create!

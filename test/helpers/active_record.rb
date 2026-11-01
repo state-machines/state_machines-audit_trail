@@ -197,6 +197,23 @@ class ARModelWithContextBasedOnOtherField < ApplicationRecord
   end
 end
 
+class ARModelWithValidatedContextStateTransition < ApplicationRecord
+  belongs_to :ar_model_with_validated_context, class_name: 'ARModelWithValidatedContext'
+  validates :context, presence: true
+end
+
+class ARModelWithValidatedContext < ApplicationRecord
+  attr_accessor :context
+
+  state_machine :state, initial: :waiting do
+    audit_trail initial: false, context: :context
+
+    event :start do
+      transition waiting: :started
+    end
+  end
+end
+
 class ARModelDescendant < ARModel
 end
 
@@ -349,11 +366,9 @@ module AuditTrailTestSchema
     def create!
       return if @created
 
-      %w[ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext
-         ARModelWithoutNamespaceColumn
-         ARModelConditionalAuditTrail
-         ARFirstModelWithPolymorphicStateTransition
-         ARSecondModelWithPolymorphicStateTransition].each do |name|
+      %w[ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext ARModelWithValidatedContext
+         ARModelWithoutNamespaceColumn ARModelConditionalAuditTrail
+         ARFirstModelWithPolymorphicStateTransition ARSecondModelWithPolymorphicStateTransition].each do |name|
         create_model_table(name.constantize)
       end
 
@@ -367,9 +382,10 @@ module AuditTrailTestSchema
 
       create_transition_table('ARModelWithoutNamespaceColumn', :state, add_namespace: false)
       create_transition_table('ARModelWithNamespace', :foo_state, add_context: false)
-      create_transition_table('ARModelWithContext', :state, add_context: true)
-      create_transition_table('ARModelWithMultipleContext', :state, add_context: true)
-      create_transition_table('ARModelWithContextBasedOnOtherField', :state, add_context: true)
+      %w[ARModelWithContext ARModelWithMultipleContext ARModelWithContextBasedOnOtherField
+         ARModelWithValidatedContext].each do |name|
+        create_transition_table(name, :state, add_context: true)
+      end
       create_transition_table('ARModelWithMultipleStateMachines', :first)
       create_transition_table('ARModelWithMultipleStateMachines', :second)
       create_transition_table('ARModelWithMultipleStateMachines', :third)

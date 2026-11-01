@@ -24,13 +24,7 @@ module StateMachines
           fields[field] = resolve_context(object, field, transition)
         end
 
-        # begin
         persist(object, fields)
-        # rescue => e
-        #   puts "\nUncaught #{e.class} persisting audit_trail: #{e.message}"
-        #   puts "\t" + e.backtrace.join($/ + "\t")
-        #   raise e
-        # end
       end
 
       #

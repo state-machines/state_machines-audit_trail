@@ -1,5 +1,24 @@
 # Changelog
 
+## [4.0.0](https://github.com/state-machines/state_machines-audit_trail/compare/state_machines-audit_trail/v3.0.0...state_machines-audit_trail/v4.0.0) (2026-11-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* Rails appraisal support now starts at Rails 8.0.
+
+### Features
+
+* drop Rails 7 support ([ce4607d](https://github.com/state-machines/state_machines-audit_trail/commit/ce4607dc3c2f056e9a9a258f20e217755b77ffda))
+* move to minitest ([#48](https://github.com/state-machines/state_machines-audit_trail/issues/48)) ([7ef8785](https://github.com/state-machines/state_machines-audit_trail/commit/7ef8785ec05b21f519a46e26faee2280480e46e6))
+
+
+### Bug Fixes
+
+* **active_record:** raise when an audit record cannot be written ([e4493e3](https://github.com/state-machines/state_machines-audit_trail/commit/e4493e350dab01b5499535f33bb067119f5f69f4))
+* **audit_trail:** log the initial transition once across retried creates ([3b71b7a](https://github.com/state-machines/state_machines-audit_trail/commit/3b71b7aeb85b08b51c0e74c6b6b5c2e321c18edf))
+* resolve audit_trail context at save time, not at .new time ([#23](https://github.com/state-machines/state_machines-audit_trail/issues/23)) ([ab6f99e](https://github.com/state-machines/state_machines-audit_trail/commit/ab6f99e1b9164a444393f860657568584160707d))
+
 ## [3.0.0](https://github.com/state-machines/state_machines-audit_trail/compare/state_machines-audit_trail/v2.1.0...state_machines-audit_trail/v3.0.0) (2025-06-12)
 
 

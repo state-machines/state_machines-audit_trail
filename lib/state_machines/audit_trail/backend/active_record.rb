@@ -13,18 +13,32 @@ module StateMachines
           owner_class.has_many(@association, **assoc_options) unless owner_class.reflect_on_association(@association)
         end
 
-        def persist(object, fields, pending: nil)
+        # Inserts the audit record right away; the owner is always persisted by
+        # now (TransitionAuditing holds a new record's entries until it is
+        # created).  The record takes the owner's keys from the association's
+        # scope but is never added to the association's target (which
+        # +scope.new+ / +build+ would do): a target entry outlives a
+        # rolled back owner save as an unsaved record, which the owner's next
+        # save would insert with the stale fields.  A loaded association is
+        # reset so it reads the new row.
+        #
+        # A record that fails its validations fails the owner: the error is
+        # reported on the owner and ActiveRecord::RecordInvalid raised for it,
+        # which rolls back the owner's save (whose +save+ then returns false).
+        def persist(object, fields)
           fields.delete(:namespace) unless namespace_column_present?(object)
 
+          association = object.association(@association)
           # Let ActiveRecord manage the timestamp for us so it does the right thing with regards to timezones.
-          if pending
-            pending.assign_attributes(fields)
-            pending
-          elsif object.new_record?
-            object.send(@association).build(fields)
-          else
-            object.send(@association).create!(fields)
+          record = association.klass.new(association.scope.scope_for_create.merge(fields.stringify_keys))
+          association.set_inverse_instance(record)
+          unless record.save
+            object.errors.add(@association, :invalid)
+            raise ::ActiveRecord::RecordInvalid, object
           end
+
+          association.reset if association.loaded?
+          record
         end
 
         private

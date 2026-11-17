@@ -241,6 +241,84 @@ class ARModelAbortingFirstCreate < ApplicationRecord
   end
 end
 
+class ARModelWithValidatedInitialContextStateTransition < ApplicationRecord
+  belongs_to :ar_model_with_validated_initial_context, class_name: 'ARModelWithValidatedInitialContext'
+  validates :context, presence: true
+end
+
+# Unlike ARModelWithValidatedContext, logs the initial transition, so the
+# audit record's validation runs on the owner's create.
+class ARModelWithValidatedInitialContext < ApplicationRecord
+  attr_accessor :context
+
+  state_machine :state, initial: :waiting do
+    audit_trail context: :context
+
+    event :start do
+      transition waiting: :started
+    end
+  end
+end
+
+class ARModelConditionalRetryStateTransition < ApplicationRecord
+  belongs_to :ar_model_conditional_retry, class_name: 'ARModelConditionalRetry'
+end
+
+# Aborts its next create when abort_create is set, and logs only while
+# log_transitions is set, so a test can flip the `if:` condition between
+# create attempts.
+class ARModelConditionalRetry < ApplicationRecord
+  attr_accessor :abort_create, :log_transitions
+
+  state_machine :state, initial: :waiting do
+    audit_trail if: :log_transitions
+
+    event :start do
+      transition waiting: :started
+    end
+  end
+
+  before_create do
+    if abort_create
+      self.abort_create = false
+      throw :abort
+    end
+  end
+end
+
+class ARModelHaltingCallbacksStateTransition < ApplicationRecord
+  belongs_to :ar_model_halting_callbacks, class_name: 'ARModelHaltingCallbacks'
+end
+
+# Each event commits its transition, then a callback halts the rest of the
+# after phase: a per-transition `after:` (which runs before every machine
+# after callback), a machine after callback declared before audit_trail, or
+# an around callback declared after audit_trail halting after its yield.
+class ARModelHaltingCallbacks < ApplicationRecord
+  state_machine :state, initial: :waiting do
+    after_transition(on: :machine_after_halt) { throw :halt }
+
+    audit_trail
+
+    around_transition(on: :around_halt) do |_object, _transition, block|
+      block.call
+      throw :halt
+    end
+
+    event :branch_after_halt do
+      transition waiting: :started, after: proc { throw :halt }
+    end
+
+    event :machine_after_halt do
+      transition waiting: :started
+    end
+
+    event :around_halt do
+      transition waiting: :started
+    end
+  end
+end
+
 class ARModelDescendant < ARModel
 end
 
@@ -390,11 +468,10 @@ module AuditTrailTestSchema
       end
     end
 
-    def create!
-      return if @created
-
+    def create_model_tables
       %w[ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext ARModelWithValidatedContext
-         ARModelWithoutNamespaceColumn ARModelConditionalAuditTrail
+         ARModelWithoutNamespaceColumn ARModelConditionalAuditTrail ARModelWithValidatedInitialContext
+         ARModelConditionalRetry ARModelHaltingCallbacks
          ARFirstModelWithPolymorphicStateTransition ARSecondModelWithPolymorphicStateTransition].each do |name|
         create_model_table(name.constantize)
       end
@@ -403,15 +480,21 @@ module AuditTrailTestSchema
       create_model_table(ARModelWithMultipleStateMachines, true)
       create_model_table(ARModelWithContextBasedOnOtherField, false, :state, :other_field)
       create_model_table(ARModelAbortingFirstCreate, false, :state, :other_field)
+    end
 
-      %w[ARModel ARModelNoInitial ARModelConditionalAuditTrail].each do |name|
+    def create!
+      return if @created
+
+      create_model_tables
+      %w[ARModel ARModelNoInitial ARModelConditionalAuditTrail ARModelConditionalRetry
+         ARModelHaltingCallbacks].each do |name|
         create_transition_table(name, :state)
       end
 
       create_transition_table('ARModelWithoutNamespaceColumn', :state, add_namespace: false)
       create_transition_table('ARModelWithNamespace', :foo_state, add_context: false)
       %w[ARModelWithContext ARModelWithMultipleContext ARModelWithContextBasedOnOtherField
-         ARModelWithValidatedContext ARModelAbortingFirstCreate].each do |name|
+         ARModelWithValidatedContext ARModelWithValidatedInitialContext ARModelAbortingFirstCreate].each do |name|
         create_transition_table(name, :state, add_context: true)
       end
       create_transition_table('ARModelWithMultipleStateMachines', :first)

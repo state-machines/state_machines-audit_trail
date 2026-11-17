@@ -202,10 +202,10 @@ class ActiveRecordBackendTest < Minitest::Test
 
   def test_single_state_machine_new_model_should_log_multiple_events_including_first_save
     target = ARModelWithContext.new
-    initial_count = ARModelWithContextStateTransition.count
     target.start && target.stop && target.start
 
-    assert_equal initial_count + 4, ARModelWithContextStateTransition.count
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started], %w[stop started stopped],
+                  %w[start stopped started]], audit_rows(target)
   end
 
   def test_single_context_logging
@@ -328,6 +328,9 @@ class ActiveRecordBackendTest < Minitest::Test
     machine.save!
 
     assert_equal initial_count + 2, ARModelWithMultipleStateMachinesThirdTransition.count
+    assert_equal [[nil, nil, 'beginning']], audit_rows(machine, ARModelWithMultipleStateMachinesFirstTransition)
+    assert_equal [['begin_third', nil, 'beginning_third'], %w[end_third beginning_third done_third]],
+                 audit_rows(machine, ARModelWithMultipleStateMachinesThirdTransition)
   end
 
   def test_sti_resolve_class_name
@@ -353,6 +356,37 @@ class ActiveRecordBackendTest < Minitest::Test
     m.complete!
 
     assert_equal 'completed', m.state
+    # Logged once (to the base class's transitions), though the subclass's
+    # machine carries both its own audit callbacks and those cloned from ARModel's
+    assert_equal [[nil, nil, 'new'], %w[complete new completed]],
+                 ARModelStateTransition.where(ar_model_id: m.id).order(:id).pluck(:event, :from, :to)
+  end
+
+  def test_sti_descendant_sharing_the_parent_machine_logs_once
+    m = ARModelDescendant.new
+    m.start!
+
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]],
+                 ARModelStateTransition.where(ar_model_id: m.id).order(:id).pluck(:event, :from, :to)
+  end
+
+  def test_dup_of_new_record_does_not_share_held_transitions
+    original = ARModelWithMultipleStateMachines.new
+    original.begin_third
+    copy = original.dup
+    copy.save!
+    original.save!
+
+    assert_equal [['begin_third', nil, 'beginning_third']],
+                 audit_rows(original, ARModelWithMultipleStateMachinesThirdTransition)
+    assert_empty audit_rows(copy, ARModelWithMultipleStateMachinesThirdTransition)
+  end
+
+  def test_new_record_with_held_transitions_can_be_marshaled
+    target = ARModelWithMultipleStateMachines.new
+    target.begin_third
+
+    assert_instance_of ARModelWithMultipleStateMachines, Marshal.load(Marshal.dump(target))
   end
 
   def test_context_is_resolved_at_save_time_not_at_new_time
@@ -404,10 +438,13 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_equal 'stopped', last_transition.to
   end
 
-  def test_invalid_audit_record_raises_and_rolls_back_the_transition
+  def test_invalid_audit_record_fails_and_rolls_back_the_transition
     target = ARModelWithValidatedContext.create!
 
-    assert_raises(ActiveRecord::RecordInvalid) { target.start }
+    refute target.start
+    assert_equal 'waiting', target.state
+    refute_empty target.errors[:ar_model_with_validated_context_state_transitions]
+    assert_raises(StateMachines::InvalidTransition) { target.start! }
 
     assert_equal 'waiting', target.reload.state
     assert_equal 0, ARModelWithValidatedContextStateTransition.where(ar_model_with_validated_context_id: target.id).count
@@ -416,7 +453,17 @@ class ActiveRecordBackendTest < Minitest::Test
     target.start!
 
     assert_equal 'started', target.reload.state
-    assert_equal 1, ARModelWithValidatedContextStateTransition.where(ar_model_with_validated_context_id: target.id).count
+    rows = ARModelWithValidatedContextStateTransition.where(ar_model_with_validated_context_id: target.id)
+
+    assert_equal [['start', 'waiting', 'started', 'Some context']], rows.order(:id).pluck(:event, :from, :to, :context)
+  end
+
+  def test_invalid_audit_record_without_the_action_raises_and_keeps_no_row
+    target = ARModelWithValidatedContext.create!
+
+    assert_raises(ActiveRecord::RecordInvalid) { target.start(false) }
+    assert_equal 'waiting', target.state
+    assert_equal 0, ARModelWithValidatedContextStateTransition.where(ar_model_with_validated_context_id: target.id).count
   end
 
   def test_retried_create_logs_the_initial_transition_once
@@ -447,7 +494,160 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_equal 4, ARResourceStateTransition.count
   end
 
+  def test_event_on_new_record_logs_the_initial_state_then_the_event
+    target = ARModel.new
+    target.start!
+
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
+  def test_state_event_on_create_logs_the_initial_state_then_the_event
+    target = ARModel.create!(state_event: 'start')
+
+    assert_equal 'started', target.state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
+  def test_state_event_validated_before_create_logs_the_initial_state_then_the_event
+    target = ARModel.new(state_event: 'start')
+
+    assert_predicate target, :valid?
+    target.save!
+
+    assert_equal 'started', target.state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
+  def test_action_less_events_on_new_record_log_the_initial_state_then_each_event
+    target = ARModelWithMultipleStateMachines.new
+    target.begin_first(false)
+    target.save!
+
+    assert_equal 'end', target.first
+    assert_equal [[nil, nil, 'beginning'], %w[begin_first beginning end]],
+                 audit_rows(target, ARModelWithMultipleStateMachinesFirstTransition)
+  end
+
+  def test_branch_after_halt_does_not_skip_the_audit
+    target = ARModelHaltingCallbacks.create!
+
+    assert target.branch_after_halt
+
+    assert_equal 'started', target.reload.state
+    assert_equal [[nil, nil, 'waiting'], %w[branch_after_halt waiting started]], audit_rows(target)
+  end
+
+  def test_machine_after_halt_declared_before_audit_trail_does_not_skip_the_audit
+    target = ARModelHaltingCallbacks.create!
+
+    assert target.machine_after_halt
+
+    assert_equal 'started', target.reload.state
+    assert_equal [[nil, nil, 'waiting'], %w[machine_after_halt waiting started]], audit_rows(target)
+  end
+
+  def test_inner_around_halting_after_yield_does_not_skip_the_audit
+    target = ARModelHaltingCallbacks.create!
+
+    assert target.around_halt
+
+    assert_equal 'started', target.reload.state
+    assert_equal [[nil, nil, 'waiting'], %w[around_halt waiting started]], audit_rows(target)
+  end
+
+  def test_inner_around_halting_after_yield_does_not_skip_the_audit_without_the_action
+    target = ARModelHaltingCallbacks.create!
+
+    assert target.around_halt(false)
+
+    assert_equal 'started', target.state
+    assert_equal [[nil, nil, 'waiting'], %w[around_halt waiting started]], audit_rows(target)
+  end
+
+  def test_after_halt_on_new_record_does_not_skip_the_audit
+    target = ARModelHaltingCallbacks.new
+
+    assert target.branch_after_halt
+
+    assert_equal [[nil, nil, 'waiting'], %w[branch_after_halt waiting started]], audit_rows(target)
+  end
+
+  def test_loaded_audit_association_reads_the_new_rows
+    target = ARModel.create!
+
+    loaded_rows = -> { target.ar_model_state_transitions.map { |row| [row.event, row.from, row.to] } }
+
+    assert_equal [[nil, nil, 'waiting']], loaded_rows.call
+
+    target.start!
+
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], loaded_rows.call
+  end
+
+  def test_failed_initial_audit_write_is_recovered_by_a_later_save
+    target = ARModelWithValidatedInitialContext.new
+
+    refute target.save
+    assert_predicate target, :new_record?
+    refute_empty target.errors[:ar_model_with_validated_initial_context_state_transitions]
+    assert_equal 0, ARModelWithValidatedInitialContextStateTransition.count
+
+    target.context = 'Some context'
+
+    assert target.save
+    rows = ARModelWithValidatedInitialContextStateTransition.where(ar_model_with_validated_initial_context_id: target.id)
+
+    assert_equal [[nil, nil, 'waiting', 'Some context']], rows.order(:id).pluck(:event, :from, :to, :context)
+  end
+
+  def test_retried_create_rechecks_the_if_condition
+    target = ARModelConditionalRetry.new
+    target.abort_create = true
+    target.log_transitions = true
+
+    refute target.save
+
+    target.log_transitions = false
+
+    assert target.save
+    assert_empty audit_rows(target)
+  end
+
+  def test_retried_create_logs_the_initial_transition_after_a_false_if_condition
+    target = ARModelConditionalRetry.new
+    target.abort_create = true
+
+    refute target.save
+
+    target.log_transitions = true
+
+    assert target.save
+    assert_equal [[nil, nil, 'waiting']], audit_rows(target)
+  end
+
+  def test_retried_create_after_resetting_the_audit_association_logs_the_initial_transition
+    target = ARModelAbortingFirstCreate.new(other_field: 'aborted_attempt')
+    target.abort_create = true
+
+    refute target.save
+
+    target.association(:ar_model_aborting_first_create_state_transitions).reset
+    target.other_field = 'successful_attempt'
+
+    assert target.save
+    rows = ARModelAbortingFirstCreateStateTransition.where(ar_model_aborting_first_create_id: target.id)
+
+    assert_equal [[nil, nil, 'waiting', 'successful_attempt']], rows.order(:id).pluck(:event, :from, :to, :context)
+  end
+
   private
+
+  # [event, from, to] of every audit row the record owns, oldest first
+  def audit_rows(target, transition_class = nil)
+    transition_class ||= "#{target.class.name}StateTransition".constantize
+    foreign_key = target.class.name.foreign_key
+    transition_class.where(foreign_key => target.id).order(:id).pluck(:event, :from, :to)
+  end
 
   def assert_transition(state_transition, event, from, to)
     if event.nil?

@@ -56,14 +56,24 @@ class Subscription < ActiveRecord::Base
 ```
 
 ### That's it!
-`audit_trail` will register an `after_transition` callback that is used to log all transitions including the initial state if there is one.
+`audit_trail` logs every transition that commits, including the initial state if there is one:
+
+- A transition saved by the model's `save` is logged from the model's `after_save`, inside the save's database transaction,
+  so the audit entry and the state change are written together or not at all. No callback halting afterwards (a
+  transition's `after:`, an `after_transition`, an `around_transition` halting after it yields) can skip it.
+- A transition committed without that save (a machine with `action: nil`, `event(false)`) is logged as soon as it
+  completes; on a new record, once the record is created.
+- A new record logs `nil => initial state` when it is created, followed by any transition it went through before or
+  while being created: `Subscription.new.start!` logs `nil => waiting`, then `waiting => started`. `:if` and `:context`
+  are evaluated on each create attempt, so an aborted or rolled back attempt leaves nothing behind for the next one.
 
 ### Failed audit writes
 
 The audit trail is the complete history of a model's state changes, so a transition is never allowed to succeed without its
 audit entry. If the transition record cannot be written - a validation on your `StateTransition` model, a database
-constraint - the write raises `ActiveRecord::RecordInvalid` and the transition is rolled back with it. On create, an
-unwritable initial transition record fails the `save` and reports the error on the owner object.
+constraint - the save it belongs to fails and rolls back: a validation failure is reported on the owner object (under the
+transitions association), so `save` and the event return `false`, and `save!` and the bang event raise. A transition
+committed without a save raises `ActiveRecord::RecordInvalid` and is rolled back.
 
 ## Upgrading from state_machine-audit_trail
 

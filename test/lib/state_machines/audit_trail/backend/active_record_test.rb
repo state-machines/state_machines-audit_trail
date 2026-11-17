@@ -1010,33 +1010,37 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_empty StateMachines::AuditTrail::Journal.of(target).entries
   end
 
+  # ARModelWithContext rather than ARModel: destroy runs the dependent
+  # :destroy of every has_many, and the create_for tests leave a mismatched
+  # one on ARModel in a shared (non-forking) test process; see
+  # test_destroying_owner_should_destroy_state_transitions
   def test_rolled_back_destroy_keeps_a_pending_transition
-    target = ARModel.create!
+    target = ARModelWithContext.create!
     target.start(false)
-    ARModel.transaction do
+    ARModelWithContext.transaction do
       target.destroy!
       raise ActiveRecord::Rollback
     end
     target.save!
 
-    assert_equal 'started', ARModel.find(target.id).state
+    assert_equal 'started', ARModelWithContext.find(target.id).state
     assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
   end
 
   def test_rolled_back_destroy_keeps_tracking_a_row_written_in_its_transaction
-    target = ARModel.create!
-    ARModel.transaction do
+    target = ARModelWithContext.create!
+    ARModelWithContext.transaction do
       target.start!
       target.destroy!
       raise ActiveRecord::Rollback
     end
 
-    assert_equal 'waiting', ARModel.find(target.id).state
+    assert_equal 'waiting', ARModelWithContext.find(target.id).state
     assert_equal [[nil, nil, 'waiting']], audit_rows(target)
 
     target.save!
 
-    assert_equal 'started', ARModel.find(target.id).state
+    assert_equal 'started', ARModelWithContext.find(target.id).state
     assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
   end
 

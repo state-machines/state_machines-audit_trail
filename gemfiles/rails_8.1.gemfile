@@ -7,9 +7,10 @@ gem "rubocop"
 gem "rubocop-minitest"
 gem "rubocop-performance"
 gem "activerecord", "~> 8.1.0"
-gem "sqlite3", platforms: [:mri, :rbx]
+gem "sqlite3", platforms: [:mri, :truffleruby]
 gem "state_machines-activerecord"
-gem "activerecord-jdbcsqlite3-adapter", platform: [:jruby, :truffleruby]
+gem "activerecord-jdbcsqlite3-adapter", ">= 81.0.pre1", platform: :jruby
+gem "jdbc-sqlite3", ">= 3.46", platform: :jruby
 
 platforms :mri do
   gem "padded_cell", "~> 0.2"

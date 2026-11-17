@@ -6,9 +6,8 @@ gem "rubocop"
 gem "rubocop-minitest"
 gem "rubocop-performance"
 gem "activerecord", github: "rails/rails", branch: "main"
-gem "sqlite3", platforms: :mri
+gem "sqlite3", platforms: [:mri, :truffleruby]
 gem "state_machines-activerecord"
-gem "activerecord-jdbcsqlite3-adapter", platform: [:jruby, :truffleruby]
 gem "activemodel", github: "rails/rails", branch: "main"
 # railties has to come from the same source as activerecord/activemodel
 # above; a separately-sourced `>= 7.1` constraint from rubygems.org

@@ -6,13 +6,17 @@ module StateMachines
     # audited machine) whose audit row is not committed yet, in the order the
     # transitions started.
     #
-    # It holds live transitions of the in-memory record's attributes: it is
-    # created with the record (Owner's after_initialize), so a +clone+ (which
-    # shares the attributes) shares it, while a +dup+ (a new record) and a
-    # +reload+ (new attributes for that instance only) detach onto a fresh one
-    # (see Owner::Record).  A Marshal round trip (e.g. a cache write) drops it.
+    # What a save writes is the record's attribute set (its +@attributes+),
+    # and that is what the journal belongs to: it is kept on the attribute set
+    # itself, so it lives exactly as long as the set and is shared by every
+    # instance holding it - a +clone+, a +becomes+ copy, a record that
+    # +reload+ed into the set a find built - while a +dup+ or a freshly built
+    # or loaded record gets a set, and so a journal, of its own.  Where
+    # ActiveRecord gives a record a new set for the same row (see .migrate),
+    # the record's entries follow it.  A Marshal round trip (e.g. a cache
+    # write) drops it.
     class Journal
-      # Instance variable holding a record's Journal
+      # Instance variable holding an attribute set's Journal
       IVAR = :@state_machines_audit_trail
 
       # The null => initial entry of a new record
@@ -56,13 +60,35 @@ module StateMachines
       end
 
       def self.of(record)
-        record.instance_variable_get(IVAR) || record.instance_variable_set(IVAR, new)
+        for_attributes(record.instance_variable_get(:@attributes))
       end
 
-      # Gives the record a fresh journal, leaving the one it shared (with a
-      # clone) to the other copies
-      def self.detach(record)
-        record.instance_variable_set(IVAR, new)
+      # A frozen set (a destroyed or frozen record's) cannot take a journal and
+      # never writes a transition: it gets a throwaway one
+      def self.for_attributes(attributes)
+        attributes.instance_variable_get(IVAR) ||
+          (attributes.frozen? ? new : attributes.instance_variable_set(IVAR, new))
+      end
+
+      # ActiveRecord replaced the record's attribute set +from+ with +to+ for
+      # the same row: in the middle of a save (changes_applied, which runs
+      # before the after_save callbacks), on a rollback, on freeze.  The
+      # entries that are the record's go with it: every state change in place
+      # in +from+ (the save under way is writing it, whichever holder ran
+      # it), rows already written, and the transitions running on the record
+      # itself.  Other holders of +from+ (clones) keep only the transitions
+      # they are still running; anything they do afterwards is theirs.
+      def self.migrate(record, from, to)
+        return if from.nil? || from.equal?(to)
+
+        old = from.instance_variable_get(IVAR)
+        return unless old
+
+        moving, staying = old.entries.partition do |entry|
+          entry.written? || entry.transition.persisted? || entry.transition.object.equal?(record)
+        end
+        old.entries.replace(staying)
+        for_attributes(to).entries.concat(moving)
       end
 
       attr_reader :entries

@@ -9,19 +9,30 @@ module StateMachines
     module Owner
       HOOKED = :@state_machines_audit_trail_hooked
 
-      # A dup is a new record with new attributes, and a reload gives the
-      # reloaded instance new attributes: both detach onto a fresh journal.  A
-      # clone shares the attributes, and so keeps sharing the journal (also
-      # when the other copy is reloaded).
+      # The points where ActiveRecord gives a record a new attribute set for
+      # the same row; its journal entries follow (Journal.migrate).  The ones
+      # that hand out a set built elsewhere - reload (the fresh find's),
+      # becomes (shared), clone (shared), dup / new / find (a new one) - need
+      # nothing: the journal is the set's.
       module Record
-        def reload(*)
-          super.tap { Journal.detach(self) }
+        def freeze
+          from = @attributes
+          super.tap { Journal.migrate(self, from, @attributes) }
         end
 
-        # Before super: the dup's after_initialize callbacks run inside it
-        def initialize_dup(other)
-          Journal.detach(self)
-          super
+        private
+
+        # ActiveModel::Dirty: changes_applied (during a save, before the
+        # after_save callbacks) and clear_changes_information
+        def forget_attribute_assignments
+          from = @attributes
+          super.tap { Journal.migrate(self, from, @attributes) }
+        end
+
+        # ActiveRecord::Transactions, when a rolled back save restores the record
+        def restore_transaction_record_state(...)
+          from = @attributes
+          super.tap { Journal.migrate(self, from, @attributes) }
         end
       end
 
@@ -35,8 +46,6 @@ module StateMachines
 
           owner_class.instance_variable_set(HOOKED, true)
           owner_class.prepend(Record)
-          # Created with the record, so a clone made before any transition shares it
-          owner_class.after_initialize { |record| Journal.of(record) }
           owner_class.after_create { |record| Owner.created(record) if Owner.acting?(record, owner_class) }
           owner_class.after_save { |record| Owner.saved(record) if Owner.acting?(record, owner_class) }
           owner_class.after_commit { |record| Owner.committed(record) if Owner.acting?(record, owner_class) }

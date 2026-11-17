@@ -520,6 +520,25 @@ class ARModelRaisingBefore < ApplicationRecord
   end
 end
 
+class ARModelStartOnFindStateTransition < ApplicationRecord
+  belongs_to :ar_model_start_on_find, class_name: 'ARModelStartOnFind'
+end
+
+# Starts itself (without saving) from after_find while the class flag is set
+class ARModelStartOnFind < ApplicationRecord
+  class_attribute :start_on_find, default: false
+
+  state_machine :state, initial: :waiting do
+    audit_trail
+
+    event :start do
+      transition waiting: :started
+    end
+  end
+
+  after_find { start(false) if self.class.start_on_find && can_start? }
+end
+
 class ARModelDescendant < ARModel
 end
 
@@ -674,6 +693,7 @@ module AuditTrailTestSchema
          ARModelWithoutNamespaceColumn ARModelConditionalAuditTrail ARModelWithValidatedInitialContext
          ARModelConditionalRetry ARModelHaltingCallbacks ARModelNestedSave ARModelNestedEvent
          ARModelWithRequiredContext ARLateParent ARModelDupInit ARModelRaisingBefore
+         ARModelStartOnFind
          ARFirstModelWithPolymorphicStateTransition ARSecondModelWithPolymorphicStateTransition].each do |name|
         create_model_table(name.constantize)
       end
@@ -705,7 +725,7 @@ module AuditTrailTestSchema
       create_model_tables
       %w[ARModel ARModelNoInitial ARModelConditionalAuditTrail ARModelConditionalRetry
          ARModelHaltingCallbacks ARModelDeferred ARModelNestedSave ARModelNestedEvent ARLateParent
-         ARModelDupInit ARModelRaisingBefore].each do |name|
+         ARModelDupInit ARModelRaisingBefore ARModelStartOnFind].each do |name|
         create_transition_table(name, :state)
       end
       create_required_context_transition_table

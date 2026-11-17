@@ -71,8 +71,9 @@ the two are written together or not at all:
 - Entries are written in the order the transitions happened, across all the model's machines.
 - `:if` and `:context` are evaluated when the entry is written. A save that fails or is rolled back (including by an
   enclosing transaction or a savepoint) takes its entries with it, and the next save that writes the state again writes
-  them again. `reload` discards transitions not saved yet, along with the state they set; a `clone` (which shares the
-  record's attributes) shares its pending transitions, a `dup` (a new record) starts without them.
+  them again. Pending transitions belong to the record's attribute set, which is what a save writes: a `clone` or
+  `becomes` copy (sharing the attributes) shares them until one of them saves, a `dup` starts without them, and `reload`
+  discards them along with the state they set.
 
 ### Failed audit writes
 

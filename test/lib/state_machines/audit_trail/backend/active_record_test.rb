@@ -819,6 +819,48 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_empty StateMachines::AuditTrail::Journal.of(target).entries
   end
 
+  def test_clone_stops_sharing_pending_transitions_once_the_other_saves
+    target = ARModel.create!
+    copy = target.clone
+    target.start!
+    copy.stop(false)
+    target.save!
+
+    assert_equal 'started', ARModel.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+
+    copy.save!
+
+    assert_equal 'stopped', ARModel.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started], %w[stop started stopped]], audit_rows(target)
+  end
+
+  def test_becomes_shares_pending_transitions
+    target = ARModel.create!
+    cast = target.becomes(ARModelDescendant)
+    cast.start(false)
+    target.save!
+
+    assert_equal 'started', ARModel.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
+  def test_reload_adopts_transitions_made_while_finding_the_fresh_record
+    target = ARModelStartOnFind.create!
+    begin
+      ARModelStartOnFind.start_on_find = true
+      target.reload
+    ensure
+      ARModelStartOnFind.start_on_find = false
+    end
+
+    assert_equal 'started', target.state
+    target.save!
+
+    assert_equal 'started', ARModelStartOnFind.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
   def test_save_inside_a_refused_loopback_logs_nothing
     target = ARModelNestedSave.create!
 

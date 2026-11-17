@@ -913,6 +913,31 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
   end
 
+  def test_reload_in_an_earlier_after_save_keeps_the_saved_transition
+    target = ARModelReloadAfterSave.create!
+    target.start!
+
+    assert_equal 'started', ARModelReloadAfterSave.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
+  def test_reload_in_an_earlier_after_create_keeps_the_initial_state_and_the_event
+    target = ARModelReloadAfterCreate.new
+    target.start!
+
+    assert_equal 'started', ARModelReloadAfterCreate.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
+  def test_rolled_back_nested_save_does_not_cost_the_outer_save_its_rows
+    target = ARModelNestedSavepointSave.create!
+    target.nest_once = true
+    target.start!
+
+    assert_equal 'started', ARModelNestedSavepointSave.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
   def test_save_inside_a_refused_loopback_logs_nothing
     target = ARModelNestedSave.create!
 

@@ -34,8 +34,13 @@ module StateMachines
           from = @attributes
           super.tap do
             Journal.migrate(self, from, @attributes)
-            Journal.of(self).snapshot
+            Save.current(self)&.row_written(self, Journal.of(self))
           end
+        end
+
+        # ActiveRecord: one save, callbacks included
+        def create_or_update(...)
+          Save.around(self) { super }
         end
 
         # ActiveRecord::Transactions, when a rolled back save restores the record
@@ -91,26 +96,21 @@ module StateMachines
           end
         end
 
-        # Writes, inside the save's database transaction, a row for every noted
-        # transition whose state change was in place (Transition#persisted?)
-        # when this save wrote the record's row, and whose audit row is not
-        # written yet (see Journal::Entry#disposition).
+        # Writes, inside the save's database transaction, the rows of the
+        # transitions this save audits (see Save)
         def saved(record)
           journal = Journal.of(record)
           journal.prune(true)
-          transaction = record.class.with_connection(&:current_transaction)
+          save = Save.current(record)
+          return unless save
 
-          journal.entries.dup.each do |entry|
-            case entry.disposition(record)
-            when :write
-              entry.transition.machine.send(:audit_write, record, entry.transition)
-              entry.written_in = transaction
-            when :drop
-              journal.entries.delete(entry)
-            end
+          transaction = record.class.with_connection(&:current_transaction)
+          writing, dropping = save.take
+          writing.each do |entry|
+            entry.transition.machine.send(:audit_write, record, entry.transition)
+            entry.written_in = transaction
           end
-        ensure
-          journal&.entries&.each { |entry| entry.in_saved_row = false }
+          journal.entries.reject! { |entry| dropping.include?(entry) }
         end
       end
     end

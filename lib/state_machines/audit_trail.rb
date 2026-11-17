@@ -13,6 +13,7 @@ end
 
 require 'state_machines/audit_trail/version'
 require 'state_machines/audit_trail/journal'
+require 'state_machines/audit_trail/save'
 require 'state_machines/audit_trail/owner'
 require 'state_machines/audit_trail/collection_guard'
 require 'state_machines/audit_trail/transition_auditing'

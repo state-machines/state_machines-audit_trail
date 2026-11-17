@@ -59,7 +59,10 @@ module StateMachines
           return if owner_class.instance_variable_get(HOOKED)
 
           owner_class.instance_variable_set(HOOKED, true)
-          owner_class.prepend(Record)
+          # A copy per class: a subclass that installed first would otherwise
+          # carry the same module twice in its ancestors, and TruffleRuby's
+          # super from the outer copy re-enters it forever.
+          owner_class.prepend(Record.dup)
           owner_class.after_create { |record| Owner.created(record) if Owner.acting?(record, owner_class) }
           owner_class.after_save { |record| Owner.saved(record) if Owner.acting?(record, owner_class) }
           owner_class.after_commit { |record| Owner.committed(record) if Owner.acting?(record, owner_class) }

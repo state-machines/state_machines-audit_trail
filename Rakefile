@@ -34,4 +34,6 @@ else
   task test: :minitest
 end
 
-task default: :test
+# rubocop is absent under the Appraisal gemfiles (see above), where the
+# default task is the tests alone
+task default: Rake::Task.task_defined?(:rubocop) ? %i[test rubocop] : :test

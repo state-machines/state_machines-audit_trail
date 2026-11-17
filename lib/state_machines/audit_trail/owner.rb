@@ -105,7 +105,7 @@ module StateMachines
           return unless save
 
           transaction = record.class.with_connection(&:current_transaction)
-          writing, dropping = save.take
+          writing, dropping = save.take(journal)
           writing.each do |entry|
             entry.transition.machine.send(:audit_write, record, entry.transition)
             entry.written_in = transaction

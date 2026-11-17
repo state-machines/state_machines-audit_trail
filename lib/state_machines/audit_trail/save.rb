@@ -33,9 +33,10 @@ module StateMachines
           record.remove_instance_variable(IVAR) if saves.empty?
         end
 
-        # The entries an open save of the record will audit and has not yet
-        def unwritten(record)
-          (record.instance_variable_get(IVAR) || []).flat_map { |save| save.to_write.reject(&:written?) }
+        # The entries the open saves of the record still owe a row: what each
+        # one's after_save will write (see #owed)
+        def owed(record)
+          (record.instance_variable_get(IVAR) || []).flat_map(&:owed)
         end
       end
 
@@ -65,10 +66,18 @@ module StateMachines
         end
       end
 
-      # The after_save: what to write now (still in place, and not written, or
-      # written by a nested save that rolled back), and what to drop
-      def take
-        writing = to_write.select { |entry| entry.transition.persisted? && (!entry.written? || entry.written_row_lost?) }
+      # What this save's after_save will write: entries still in place whose
+      # row is not written, or was written by a nested save that rolled back
+      def owed
+        to_write.select { |entry| entry.transition.persisted? && (!entry.written? || entry.written_row_lost?) }
+      end
+
+      # The after_save: what to write now, and what to drop.  Only entries
+      # still in the record's journal - the one record of what is owed; the
+      # frame only points at them.
+      def take(journal)
+        tracked = ->(entry) { journal.entries.any? { |noted| noted.equal?(entry) } }
+        writing = owed.select(&tracked)
         dropping = to_drop.select(&:written_row_lost?)
         @to_write = []
         @to_drop = []

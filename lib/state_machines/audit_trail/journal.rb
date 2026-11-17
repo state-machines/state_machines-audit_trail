@@ -110,8 +110,9 @@ module StateMachines
       # * a transition still running on the record (noted, neither in place
       #   nor refused yet - e.g. one whose callback takes a lock with
       #   +with_lock+ / +lock!+);
-      # * one a save under way wrote into its row but has not audited yet (a
-      #   reload from an after_create / after_save running before audit_trail's);
+      # * one a save under way wrote into its row and still owes a row (a reload
+      #   from an after_create / after_save running before audit_trail's),
+      #   including one whose row a nested save wrote and rolled back;
       # * one whose row is written in a transaction still open, which can
       #   still roll that row back (and restore the state in memory) - the
       #   next save of that state must write it again.
@@ -123,7 +124,7 @@ module StateMachines
         old = from.instance_variable_get(IVAR)
         return unless old
 
-        saving = Save.unwritten(record)
+        saving = Save.owed(record)
         transaction_open = record.class.with_connection(&:transaction_open?)
         running, staying = old.entries.partition do |entry|
           entry.running_on?(record) || saving.include?(entry) || entry.written_row_pending?(transaction_open)

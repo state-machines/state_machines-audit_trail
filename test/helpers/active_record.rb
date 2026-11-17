@@ -671,6 +671,35 @@ class ARModelReloadAfterAudit < ApplicationRecord
   after_save :reload
 end
 
+class ARModelNestedThenReloadStateTransition < ApplicationRecord
+  belongs_to :ar_model_nested_then_reload, class_name: 'ARModelNestedThenReload'
+end
+
+# When nest_once is set, an after_save declared before audit_trail's saves the
+# record again in a rolled back savepoint, then reloads it
+class ARModelNestedThenReload < ApplicationRecord
+  attr_accessor :nest_once
+
+  after_save do
+    if nest_once
+      self.nest_once = false
+      self.class.transaction(requires_new: true) do
+        save!
+        raise ActiveRecord::Rollback
+      end
+      reload
+    end
+  end
+
+  state_machine :state, initial: :waiting do
+    audit_trail
+
+    event :start do
+      transition waiting: :started
+    end
+  end
+end
+
 class ARModelDescendant < ARModel
 end
 
@@ -826,7 +855,7 @@ module AuditTrailTestSchema
          ARModelConditionalRetry ARModelHaltingCallbacks ARModelNestedSave ARModelNestedEvent
          ARModelWithRequiredContext ARLateParent ARModelDupInit ARModelRaisingBefore
          ARModelStartOnFind ARModelLocking ARModelLateStart ARModelReloadAfterSave ARModelReloadAfterCreate
-         ARModelNestedSavepointSave ARModelReloadAfterAudit
+         ARModelNestedSavepointSave ARModelReloadAfterAudit ARModelNestedThenReload
          ARFirstModelWithPolymorphicStateTransition ARSecondModelWithPolymorphicStateTransition].each do |name|
         create_model_table(name.constantize)
       end
@@ -860,7 +889,7 @@ module AuditTrailTestSchema
          ARModelHaltingCallbacks ARModelDeferred ARModelNestedSave ARModelNestedEvent ARLateParent
          ARModelDupInit ARModelRaisingBefore ARModelStartOnFind
          ARModelLocking ARModelLateStart ARModelReloadAfterSave ARModelReloadAfterCreate
-         ARModelNestedSavepointSave ARModelReloadAfterAudit].each do |name|
+         ARModelNestedSavepointSave ARModelReloadAfterAudit ARModelNestedThenReload].each do |name|
         create_transition_table(name, :state)
       end
       create_required_context_transition_table

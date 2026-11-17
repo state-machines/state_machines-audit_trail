@@ -983,6 +983,33 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
   end
 
+  def test_reload_after_a_rolled_back_nested_save_keeps_the_rewritten_row_tracked
+    target = ARModelNestedThenReload.create!
+    target.nest_once = true
+    ARModelNestedThenReload.transaction do
+      target.start!
+      raise ActiveRecord::Rollback
+    end
+
+    assert_equal 'waiting', ARModelNestedThenReload.find(target.id).state
+    assert_equal [[nil, nil, 'waiting']], audit_rows(target)
+
+    target.save!
+
+    assert_equal 'started', ARModelNestedThenReload.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
+  def test_reload_after_a_rolled_back_nested_save_without_an_enclosing_transaction
+    target = ARModelNestedThenReload.create!
+    target.nest_once = true
+    target.start!
+
+    assert_equal 'started', ARModelNestedThenReload.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+    assert_empty StateMachines::AuditTrail::Journal.of(target).entries
+  end
+
   def test_save_inside_a_refused_loopback_logs_nothing
     target = ARModelNestedSave.create!
 

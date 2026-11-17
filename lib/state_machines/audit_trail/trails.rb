@@ -18,14 +18,15 @@ module StateMachines
         def args = nil
       end
 
-      # A transition committed on a new record, written when it is created
-      UnsavedTransition = Data.define(:transition, :loggable)
+      # * noted - transitions started on the record whose audit is not
+      #   recorded for good yet, oldest first
+      # * written - those written in the open database transaction
+      Trail = Data.define(:noted, :written) do
+        def initialize(noted: [], written: []) = super
 
-      # * in_flight - transitions inside the audit around callback, whose
-      #   outcome is not known yet
-      # * unsaved - transitions committed while the record was new, oldest first
-      Trail = Data.define(:in_flight, :unsaved) do
-        def initialize(in_flight: [], unsaved: []) = super
+        def written?(transition)
+          written.any? { |done| done.equal?(transition) }
+        end
       end
 
       def self.of(object)

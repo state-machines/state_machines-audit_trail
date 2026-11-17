@@ -15,7 +15,7 @@ Gem::Specification.new do |s|
 
   s.required_ruby_version = '>= 4.0'
 
-  s.add_dependency('state_machines', '>= 0.304.0')
+  s.add_dependency('state_machines', '>= 0.305.0')
   s.add_dependency('state_machines-activerecord', '>= 0.304.0')
   s.add_development_dependency('appraisal')
   s.add_development_dependency('minitest', '~> 6.0')

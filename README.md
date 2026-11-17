@@ -56,24 +56,27 @@ class Subscription < ActiveRecord::Base
 ```
 
 ### That's it!
-`audit_trail` logs every transition that commits, including the initial state if there is one:
+`audit_trail` logs every transition whose state change the model saves, including the initial state if there is one. An
+audit entry is written by the same `save` that writes the state it records, inside that save's database transaction, so
+the two are written together or not at all:
 
-- A transition saved by the model's `save` is logged from the model's `after_save`, inside the save's database transaction,
-  so the audit entry and the state change are written together or not at all. No callback halting afterwards (a
-  transition's `after:`, an `after_transition`, an `around_transition` halting after it yields) can skip it.
-- A transition committed without that save (a machine with `action: nil`, `event(false)`) is logged as soon as it
-  completes; on a new record, once the record is created.
-- A new record logs `nil => initial state` when it is created, followed by any transition it went through before or
-  while being created: `Subscription.new.start!` logs `nil => waiting`, then `waiting => started`. `:if` and `:context`
-  are evaluated on each create attempt, so an aborted or rolled back attempt leaves nothing behind for the next one.
+- A transition whose action is `save` (an event method, `state_event` on create or update) is logged by that save. A
+  transition generated during the save (e.g. one machine's callback firing another machine's event) is logged by it too.
+- A transition committed without a save (a machine with `action: nil`, `event(false)`) is logged by the next save of the
+  record, which is the one that writes its state.
+- A transition that is refused, or rolled back, is never logged; once its state change is in place, nothing that runs
+  afterwards (a transition's `after:`, an `after_transition` or `around_transition` halting or raising) can drop it.
+- A new record logs `nil => initial state` when it is created, followed by the transitions it went through before or
+  while being created: `Subscription.new.start!` logs `nil => waiting`, then `waiting => started`.
+- `:if` and `:context` are evaluated when the entry is written. A save that fails or is rolled back (including by an
+  enclosing transaction) takes its entries with it, and the next save that writes the state writes them again.
 
 ### Failed audit writes
 
-The audit trail is the complete history of a model's state changes, so a transition is never allowed to succeed without its
-audit entry. If the transition record cannot be written - a validation on your `StateTransition` model, a database
-constraint - the save it belongs to fails and rolls back: a validation failure is reported on the owner object (under the
-transitions association), so `save` and the event return `false`, and `save!` and the bang event raise. A transition
-committed without a save raises `ActiveRecord::RecordInvalid` and is rolled back.
+The audit trail is the complete history of a model's state changes, so a state change is never saved without its audit
+entry. If the transition record cannot be written - a validation on your `StateTransition` model, a database constraint -
+the save fails and rolls back: a validation failure is reported on the owner object (under the transitions association),
+so `save` and the event return `false`, and `save!` and the bang event raise.
 
 ## Upgrading from state_machine-audit_trail
 

@@ -305,6 +305,11 @@ class ARModelHaltingCallbacks < ApplicationRecord
       throw :halt
     end
 
+    around_transition(on: :around_raise) do |_object, _transition, block|
+      block.call
+      raise ArgumentError, 'raised after the state change'
+    end
+
     event :branch_after_halt do
       transition waiting: :started, after: proc { throw :halt }
     end
@@ -315,6 +320,62 @@ class ARModelHaltingCallbacks < ApplicationRecord
 
     event :around_halt do
       transition waiting: :started
+    end
+
+    event :around_raise do
+      transition waiting: :started
+    end
+  end
+end
+
+class ARModelDeferredStateTransition < ApplicationRecord
+  belongs_to :ar_model_deferred, class_name: 'ARModelDeferred'
+end
+
+class ARModelDeferredPhaseTransition < ApplicationRecord
+  belongs_to :ar_model_deferred, class_name: 'ARModelDeferred'
+end
+
+# Starting sets the phase machine's event attribute from a before callback, so
+# the phase transition is generated mid-save: previewed by the validation
+# (its around callbacks not entered) and completed after the save.
+class ARModelDeferred < ApplicationRecord
+  state_machine :state, initial: :waiting do
+    audit_trail
+
+    before_transition(on: :start) { |record| record.phase_event = 'advance' }
+
+    event :start do
+      transition waiting: :started
+    end
+  end
+
+  state_machine :phase, initial: :draft do
+    audit_trail
+
+    event :advance do
+      transition draft: :final
+    end
+  end
+end
+
+class ARModelNestedSaveStateTransition < ApplicationRecord
+  belongs_to :ar_model_nested_save, class_name: 'ARModelNestedSave'
+end
+
+# A machine without an action or transactions whose before callback, declared
+# after audit_trail, saves the record and then refuses the transition.
+class ARModelNestedSave < ApplicationRecord
+  state_machine :state, initial: :waiting, action: nil, use_transactions: false do
+    audit_trail
+
+    before_transition(on: :wait) do |record|
+      record.save!
+      throw :halt
+    end
+
+    event :wait do
+      transition waiting: :waiting
     end
   end
 end
@@ -471,7 +532,7 @@ module AuditTrailTestSchema
     def create_model_tables
       %w[ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext ARModelWithValidatedContext
          ARModelWithoutNamespaceColumn ARModelConditionalAuditTrail ARModelWithValidatedInitialContext
-         ARModelConditionalRetry ARModelHaltingCallbacks
+         ARModelConditionalRetry ARModelHaltingCallbacks ARModelNestedSave
          ARFirstModelWithPolymorphicStateTransition ARSecondModelWithPolymorphicStateTransition].each do |name|
         create_model_table(name.constantize)
       end
@@ -480,6 +541,7 @@ module AuditTrailTestSchema
       create_model_table(ARModelWithMultipleStateMachines, true)
       create_model_table(ARModelWithContextBasedOnOtherField, false, :state, :other_field)
       create_model_table(ARModelAbortingFirstCreate, false, :state, :other_field)
+      create_model_table(ARModelDeferred, false, :state, :phase)
     end
 
     def create!
@@ -487,9 +549,10 @@ module AuditTrailTestSchema
 
       create_model_tables
       %w[ARModel ARModelNoInitial ARModelConditionalAuditTrail ARModelConditionalRetry
-         ARModelHaltingCallbacks].each do |name|
+         ARModelHaltingCallbacks ARModelDeferred ARModelNestedSave].each do |name|
         create_transition_table(name, :state)
       end
+      create_transition_table('ARModelDeferred', :phase)
 
       create_transition_table('ARModelWithoutNamespaceColumn', :state, add_namespace: false)
       create_transition_table('ARModelWithNamespace', :foo_state, add_context: false)

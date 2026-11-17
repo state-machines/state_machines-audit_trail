@@ -458,11 +458,14 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_equal [['start', 'waiting', 'started', 'Some context']], rows.order(:id).pluck(:event, :from, :to, :context)
   end
 
-  def test_invalid_audit_record_without_the_action_raises_and_keeps_no_row
+  def test_invalid_audit_record_without_the_action_fails_the_save_that_writes_it
     target = ARModelWithValidatedContext.create!
 
-    assert_raises(ActiveRecord::RecordInvalid) { target.start(false) }
-    assert_equal 'waiting', target.state
+    assert target.start(false)
+    refute target.save
+    refute_empty target.errors[:ar_model_with_validated_context_state_transitions]
+
+    assert_equal 'waiting', target.reload.state
     assert_equal 0, ARModelWithValidatedContextStateTransition.where(ar_model_with_validated_context_id: target.id).count
   end
 
@@ -559,8 +562,12 @@ class ActiveRecordBackendTest < Minitest::Test
     target = ARModelHaltingCallbacks.create!
 
     assert target.around_halt(false)
-
     assert_equal 'started', target.state
+    # Not saved yet: neither is the state
+    assert_equal [[nil, nil, 'waiting']], audit_rows(target)
+
+    target.save!
+
     assert_equal [[nil, nil, 'waiting'], %w[around_halt waiting started]], audit_rows(target)
   end
 
@@ -570,6 +577,67 @@ class ActiveRecordBackendTest < Minitest::Test
     assert target.branch_after_halt
 
     assert_equal [[nil, nil, 'waiting'], %w[branch_after_halt waiting started]], audit_rows(target)
+  end
+
+  def test_transition_generated_mid_create_logs_its_machine_initial_state_then_the_event
+    target = ARModelDeferred.new
+    target.start!
+
+    assert_equal %w[started final], [target.state, target.phase]
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+    assert_equal [[nil, nil, 'draft'], %w[advance draft final]], audit_rows(target, ARModelDeferredPhaseTransition)
+  end
+
+  def test_transition_generated_mid_save_is_logged
+    target = ARModelDeferred.create!
+    target.start!
+
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+    assert_equal [[nil, nil, 'draft'], %w[advance draft final]], audit_rows(target, ARModelDeferredPhaseTransition)
+  end
+
+  def test_around_raising_after_yield_without_the_action_still_logs_on_save
+    target = ARModelHaltingCallbacks.new
+
+    assert_raises(ArgumentError) { target.around_raise(false) }
+    assert_equal 'started', target.state
+
+    target.save!
+
+    assert_equal [[nil, nil, 'waiting'], %w[around_raise waiting started]], audit_rows(target)
+  end
+
+  def test_around_raising_after_yield_without_the_action_on_persisted_record_logs_on_save
+    target = ARModelHaltingCallbacks.create!
+
+    assert_raises(ArgumentError) { target.around_raise(false) }
+    target.save!
+
+    assert_equal 'started', target.reload.state
+    assert_equal [[nil, nil, 'waiting'], %w[around_raise waiting started]], audit_rows(target)
+  end
+
+  def test_transition_rolled_back_with_an_outer_transaction_is_logged_by_the_save_that_writes_it
+    target = ARModel.create!
+    ARModel.transaction do
+      target.start!
+      raise ActiveRecord::Rollback
+    end
+
+    assert_equal 'waiting', ARModel.find(target.id).state
+    assert_equal [[nil, nil, 'waiting']], audit_rows(target)
+
+    target.save!
+
+    assert_equal 'started', target.reload.state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
+  def test_save_inside_a_refused_loopback_logs_nothing
+    target = ARModelNestedSave.create!
+
+    refute target.wait
+    assert_empty audit_rows(target)
   end
 
   def test_loaded_audit_association_reads_the_new_rows

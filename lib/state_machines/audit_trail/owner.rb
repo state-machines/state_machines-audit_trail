@@ -59,6 +59,7 @@ module StateMachines
           return if owner_class.instance_variable_get(HOOKED)
 
           owner_class.instance_variable_set(HOOKED, true)
+          Journal.guard_copies
           # A copy per class: a subclass that installed first would otherwise
           # carry the same module twice in its ancestors, and TruffleRuby's
           # super from the outer copy re-enters it forever.

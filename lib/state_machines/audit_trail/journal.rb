@@ -75,9 +75,39 @@ module StateMachines
         for_attributes(record.instance_variable_get(:@attributes))
       end
 
+      # The attribute set a record's attributes live in.  Rails main wraps a
+      # +becomes+ copy's set in an ActiveModel::ReindexedAttributeSet whose
+      # shared side is the original set; the journal is that set's.
+      def self.attribute_set(attributes)
+        attributes = attributes.instance_variable_get(:@shared) while reindexed?(attributes)
+        attributes
+      end
+
+      def self.reindexed?(attributes)
+        defined?(::ActiveModel::ReindexedAttributeSet) && attributes.is_a?(::ActiveModel::ReindexedAttributeSet)
+      end
+
+      # A copy of a set (dup, clone - e.g. LazyIndexedAttributeSet#map and
+      # #deep_dup on Rails main build theirs with +dup+) is a different set:
+      # it must not inherit the journal through its copied instance variables.
+      # Prepended to ActiveModel::AttributeSet.
+      module CopyGuard
+        def initialize_copy(source)
+          super
+          remove_instance_variable(IVAR) if instance_variable_defined?(IVAR)
+        end
+      end
+
+      def self.guard_copies
+        return if ::ActiveModel::AttributeSet <= CopyGuard
+
+        ::ActiveModel::AttributeSet.prepend(CopyGuard)
+      end
+
       # A frozen set (a destroyed or frozen record's) cannot take a journal and
       # never writes a transition: it gets a throwaway one
       def self.for_attributes(attributes)
+        attributes = attribute_set(attributes)
         attributes.instance_variable_get(IVAR) ||
           (attributes.frozen? ? new : attributes.instance_variable_set(IVAR, new))
       end
@@ -91,7 +121,10 @@ module StateMachines
       # itself.  Other holders of +from+ (clones) keep only the transitions
       # they are still running; anything they do afterwards is theirs.
       def self.migrate(record, from, to)
-        return if from.nil? || from.equal?(to)
+        return if from.nil?
+
+        from = attribute_set(from)
+        return if from.equal?(attribute_set(to))
 
         old = from.instance_variable_get(IVAR)
         return unless old
@@ -119,7 +152,10 @@ module StateMachines
       # Only completed transitions never saved, and rows committed for good
       # (or already lost), stay behind.
       def self.carry_over(record, from, to)
-        return if from.nil? || from.equal?(to)
+        return if from.nil?
+
+        from = attribute_set(from)
+        return if from.equal?(attribute_set(to))
 
         old = from.instance_variable_get(IVAR)
         return unless old

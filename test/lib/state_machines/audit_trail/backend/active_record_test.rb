@@ -938,6 +938,51 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
   end
 
+  [ARModelReloadAfterAudit, ARModelReloadAfterSave].each do |model|
+    define_method(:"test_#{model.name.underscore}_reload_keeps_rows_an_enclosing_rollback_takes") do
+      target = model.create!
+      model.transaction do
+        target.start!
+        raise ActiveRecord::Rollback
+      end
+
+      assert_equal 'waiting', model.find(target.id).state
+      assert_equal [[nil, nil, 'waiting']], audit_rows(target)
+
+      target.save!
+
+      assert_equal target.state, model.find(target.id).state
+      expected = [[nil, nil, 'waiting']]
+      expected << %w[start waiting started] if target.state == 'started'
+
+      assert_equal expected, audit_rows(target)
+    end
+  end
+
+  def test_reload_after_audit_without_an_enclosing_transaction_settles_the_journal
+    target = ARModelReloadAfterAudit.create!
+    target.start!
+
+    assert_equal 'started', ARModelReloadAfterAudit.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+    assert_empty StateMachines::AuditTrail::Journal.of(target).entries
+  end
+
+  def test_reload_after_audit_inside_a_rolled_back_savepoint_keeps_the_trail_consistent
+    target = ARModelReloadAfterAudit.create!
+    ARModelReloadAfterAudit.transaction do
+      target.start!
+      ARModelReloadAfterAudit.transaction(requires_new: true) do
+        target.stop!
+        raise ActiveRecord::Rollback
+      end
+    end
+    target.save!
+
+    assert_equal 'started', ARModelReloadAfterAudit.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
   def test_save_inside_a_refused_loopback_logs_nothing
     target = ARModelNestedSave.create!
 

@@ -42,6 +42,17 @@ module StateMachines
           !written_in.nil?
         end
 
+        # Noted on the record and neither in place nor refused yet
+        def running_on?(record)
+          transition.object.equal?(record) && !transition.persisted? && transition.refusal.nil?
+        end
+
+        # Written in a transaction that is still open (neither committed for
+        # good nor rolled back)
+        def written_row_pending?(transaction_open)
+          written? && !written_row_lost? && !written_row_final?(transaction_open)
+        end
+
         # Whether the transaction its row was written in rolled back (a
         # savepoint's, or one enclosing it), taking the row with it
         def written_row_lost?
@@ -93,23 +104,29 @@ module StateMachines
       end
 
       # A reload gave the record the attribute set a fresh find built, which
-      # discards the state changes it had not saved.  Two kinds of entries
-      # follow it there: a transition still running on the record (noted,
-      # neither in place nor refused yet - e.g. one whose callback takes a
-      # lock with +with_lock+ / +lock!+), and one a save under way already
-      # wrote into its row but has not audited yet (a reload from an earlier
-      # after_create / after_save; the fresh set holds that state).
-      def self.carry_running(record, from, to)
+      # discards the state changes it had not saved but holds those the
+      # database (or a transaction still open) does.  The entries that follow
+      # it there:
+      # * a transition still running on the record (noted, neither in place
+      #   nor refused yet - e.g. one whose callback takes a lock with
+      #   +with_lock+ / +lock!+);
+      # * one a save under way wrote into its row but has not audited yet (a
+      #   reload from an after_create / after_save running before audit_trail's);
+      # * one whose row is written in a transaction still open, which can
+      #   still roll that row back (and restore the state in memory) - the
+      #   next save of that state must write it again.
+      # Only completed transitions never saved, and rows committed for good
+      # (or already lost), stay behind.
+      def self.carry_over(record, from, to)
         return if from.nil? || from.equal?(to)
 
         old = from.instance_variable_get(IVAR)
         return unless old
 
         saving = Save.unwritten(record)
+        transaction_open = record.class.with_connection(&:transaction_open?)
         running, staying = old.entries.partition do |entry|
-          transition = entry.transition
-          (transition.object.equal?(record) && !transition.persisted? && transition.refusal.nil?) ||
-            saving.include?(entry)
+          entry.running_on?(record) || saving.include?(entry) || entry.written_row_pending?(transaction_open)
         end
         old.entries.replace(staying)
         for_attributes(to).entries.concat(running)

@@ -650,6 +650,27 @@ class ARModelNestedSavepointSave < ApplicationRecord
   end
 end
 
+class ARModelReloadAfterAuditStateTransition < ApplicationRecord
+  belongs_to :ar_model_reload_after_audit, class_name: 'ARModelReloadAfterAudit'
+end
+
+# Reloads itself from an after_save declared after audit_trail's
+class ARModelReloadAfterAudit < ApplicationRecord
+  state_machine :state, initial: :waiting do
+    audit_trail
+
+    event :start do
+      transition waiting: :started
+    end
+
+    event :stop do
+      transition started: :stopped
+    end
+  end
+
+  after_save :reload
+end
+
 class ARModelDescendant < ARModel
 end
 
@@ -805,7 +826,7 @@ module AuditTrailTestSchema
          ARModelConditionalRetry ARModelHaltingCallbacks ARModelNestedSave ARModelNestedEvent
          ARModelWithRequiredContext ARLateParent ARModelDupInit ARModelRaisingBefore
          ARModelStartOnFind ARModelLocking ARModelLateStart ARModelReloadAfterSave ARModelReloadAfterCreate
-         ARModelNestedSavepointSave
+         ARModelNestedSavepointSave ARModelReloadAfterAudit
          ARFirstModelWithPolymorphicStateTransition ARSecondModelWithPolymorphicStateTransition].each do |name|
         create_model_table(name.constantize)
       end
@@ -839,7 +860,7 @@ module AuditTrailTestSchema
          ARModelHaltingCallbacks ARModelDeferred ARModelNestedSave ARModelNestedEvent ARLateParent
          ARModelDupInit ARModelRaisingBefore ARModelStartOnFind
          ARModelLocking ARModelLateStart ARModelReloadAfterSave ARModelReloadAfterCreate
-         ARModelNestedSavepointSave].each do |name|
+         ARModelNestedSavepointSave ARModelReloadAfterAudit].each do |name|
         create_transition_table(name, :state)
       end
       create_required_context_transition_table

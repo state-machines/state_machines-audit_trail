@@ -17,7 +17,7 @@ module StateMachines
       module Record
         def reload(*)
           from = @attributes
-          super.tap { Journal.carry_running(self, from, @attributes) }
+          super.tap { Journal.carry_over(self, from, @attributes) }
         end
 
         def freeze

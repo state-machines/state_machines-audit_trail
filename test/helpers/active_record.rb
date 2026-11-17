@@ -426,6 +426,52 @@ class ARModelShared < ApplicationRecord
   end
 end
 
+class ARModelWithRequiredContextStateTransition < ApplicationRecord
+  belongs_to :ar_model_with_required_context, class_name: 'ARModelWithRequiredContext'
+end
+
+# Its transitions' context column is NOT NULL in the database, with no model
+# validation in front of it
+class ARModelWithRequiredContext < ApplicationRecord
+  attr_accessor :context
+
+  state_machine :state, initial: :waiting do
+    audit_trail initial: false, context: :context
+
+    event :start do
+      transition waiting: :started
+    end
+  end
+end
+
+class ARLateParentStateTransition < ApplicationRecord
+  belongs_to :ar_late_parent, class_name: 'ARLateParent'
+end
+
+# audit_trail declared on the subclass before its parent declares it
+class ARLateParent < ApplicationRecord
+end
+
+class ARLateChild < ARLateParent
+  state_machine :state, initial: :waiting do
+    audit_trail
+
+    event :start do
+      transition waiting: :started
+    end
+  end
+end
+
+class ARLateParent
+  state_machine :state, initial: :waiting do
+    audit_trail
+
+    event :start do
+      transition waiting: :started
+    end
+  end
+end
+
 class ARModelDescendant < ARModel
 end
 
@@ -579,6 +625,7 @@ module AuditTrailTestSchema
       %w[ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext ARModelWithValidatedContext
          ARModelWithoutNamespaceColumn ARModelConditionalAuditTrail ARModelWithValidatedInitialContext
          ARModelConditionalRetry ARModelHaltingCallbacks ARModelNestedSave ARModelNestedEvent
+         ARModelWithRequiredContext ARLateParent
          ARFirstModelWithPolymorphicStateTransition ARSecondModelWithPolymorphicStateTransition].each do |name|
         create_model_table(name.constantize)
       end
@@ -591,14 +638,28 @@ module AuditTrailTestSchema
       create_model_table(ARModelShared, false, :state, :phase)
     end
 
+    # Its context column is NOT NULL, unlike create_transition_table's
+    def create_required_context_transition_table
+      ActiveRecord::Base.connection.create_table(:ar_model_with_required_context_state_transitions) do |t|
+        t.references :ar_model_with_required_context, index: false
+        t.string :namespace
+        t.string :event
+        t.string :from
+        t.string :to
+        t.string :context, null: false
+        t.datetime :created_at
+      end
+    end
+
     def create!
       return if @created
 
       create_model_tables
       %w[ARModel ARModelNoInitial ARModelConditionalAuditTrail ARModelConditionalRetry
-         ARModelHaltingCallbacks ARModelDeferred ARModelNestedSave ARModelNestedEvent].each do |name|
+         ARModelHaltingCallbacks ARModelDeferred ARModelNestedSave ARModelNestedEvent ARLateParent].each do |name|
         create_transition_table(name, :state)
       end
+      create_required_context_transition_table
       create_transition_table('ARModelShared', :audit)
       create_transition_table('ARModelDeferred', :phase)
 

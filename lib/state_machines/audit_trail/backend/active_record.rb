@@ -13,9 +13,9 @@ module StateMachines
       # The audit record that failed its validations
       attr_reader :audit_record
 
-      def initialize(owner, audit_record)
+      def initialize(owner, audit_record, reason = audit_record.errors.full_messages.to_sentence)
         @audit_record = audit_record
-        super("Failed to write the audit trail: #{audit_record.errors.full_messages.to_sentence}", owner)
+        super("Failed to write the audit trail: #{reason}", owner)
       end
     end
 
@@ -25,6 +25,10 @@ module StateMachines
           super
           @association = transition_class.to_s.tableize.split('/').last.to_sym
           assoc_options = { class_name: transition_class.to_s, dependent: :destroy }.merge(options.slice(:as, :dependent))
+          # An STI subclass logs to its base class's transitions (see
+          # TransitionAuditing#default_transition_class), keyed like its base
+          # class's rows, not by the subclass's name
+          assoc_options[:foreign_key] ||= owner_class.base_class.name.foreign_key unless assoc_options[:as]
           owner_class.has_many(@association, **assoc_options) unless owner_class.reflect_on_association(@association)
         end
 
@@ -37,9 +41,10 @@ module StateMachines
         # save would insert with the stale fields.  A loaded association is
         # reset so it reads the new row.
         #
-        # A record that fails its validations fails the owner's save: the error
-        # is reported on the owner and RecordNotAudited raised, rolling back
-        # the save and any transaction enclosing it.
+        # A record that fails its validations or a database constraint fails
+        # the owner's save: the error is reported on the owner and
+        # RecordNotAudited raised, rolling back the save and any transaction
+        # enclosing it.
         def persist(object, fields)
           fields.delete(:namespace) unless namespace_column_present?(object)
 
@@ -47,7 +52,14 @@ module StateMachines
           # Let ActiveRecord manage the timestamp for us so it does the right thing with regards to timezones.
           record = association.klass.new(association.scope.scope_for_create.merge(fields.stringify_keys))
           association.set_inverse_instance(record)
-          unless record.save
+          begin
+            saved = record.save
+          rescue ::ActiveRecord::StatementInvalid => e
+            # A database constraint: raised with the error as its cause
+            object.errors.add(@association, :invalid)
+            raise RecordNotAudited.new(object, record, e.message)
+          end
+          unless saved
             object.errors.add(@association, :invalid)
             raise RecordNotAudited.new(object, record)
           end

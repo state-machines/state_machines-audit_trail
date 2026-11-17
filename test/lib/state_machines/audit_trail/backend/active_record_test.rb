@@ -700,6 +700,64 @@ class ActiveRecordBackendTest < Minitest::Test
                  audit_rows(target, ARModelSharedAuditTransition)
   end
 
+  def test_rows_written_inside_a_non_joinable_transaction_survive_its_rollback
+    target = ARModel.create!
+    ARModel.transaction(joinable: false) do
+      target.start!
+      raise ActiveRecord::Rollback
+    end
+
+    assert_equal 'waiting', ARModel.find(target.id).state
+    assert_equal [[nil, nil, 'waiting']], audit_rows(target)
+
+    target.state_will_change!
+    target.save!
+
+    assert_equal 'started', ARModel.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
+  def test_clone_shares_the_journal_with_the_record_it_shares_attributes_with
+    target = ARModel.create!
+    copy = target.clone
+    copy.start(false)
+    target.save!
+
+    assert_equal 'started', ARModel.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
+  def test_failed_attempts_do_not_accumulate_in_the_journal
+    target = ARModelWithValidatedContext.create!
+
+    3.times { assert_raises(StateMachines::AuditTrail::RecordNotAudited) { target.start } }
+
+    assert_operator StateMachines::AuditTrail::Journal.of(target).entries.size, :<=, 1
+
+    target.context = 'Some context'
+    target.start!
+
+    assert_empty StateMachines::AuditTrail::Journal.of(target).entries
+  end
+
+  def test_audit_trail_declared_on_a_subclass_before_its_parent_logs_once
+    target = ARLateChild.create!
+    target.start!
+
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]],
+                 ARLateParentStateTransition.where(ar_late_parent_id: target.id).order(:id).pluck(:event, :from, :to)
+  end
+
+  def test_database_constraint_violation_raises_record_not_audited
+    target = ARModelWithRequiredContext.create!
+
+    error = assert_raises(StateMachines::AuditTrail::RecordNotAudited) { target.start }
+    assert_kind_of ActiveRecord::StatementInvalid, error.cause
+    assert_same target, error.record
+    assert_equal 'waiting', target.state
+    assert_equal 'waiting', ARModelWithRequiredContext.find(target.id).state
+  end
+
   def test_save_inside_a_refused_loopback_logs_nothing
     target = ARModelNestedSave.create!
 

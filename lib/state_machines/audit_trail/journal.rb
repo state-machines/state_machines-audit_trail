@@ -6,9 +6,10 @@ module StateMachines
     # audited machine) whose audit row is not committed yet, in the order the
     # transitions started.
     #
-    # It holds live transitions of this one in-memory record, so it belongs to
-    # the record it was made for: a +dup+ (which copies instance variables)
-    # starts its own, and a Marshal round trip (e.g. a cache write) drops it.
+    # It holds live transitions of the in-memory record: a +clone+ (which
+    # shares the record's attributes) shares it, a +dup+ (a new record) starts
+    # its own (see Owner), and a Marshal round trip (e.g. a cache write) drops
+    # it.
     class Journal
       # Instance variable holding a record's Journal
       IVAR = :@state_machines_audit_trail
@@ -43,26 +44,27 @@ module StateMachines
       end
 
       def self.of(record)
-        journal = record.instance_variable_get(IVAR)
-        return journal if journal&.owned_by?(record)
-
-        record.instance_variable_set(IVAR, new(record))
+        record.instance_variable_get(IVAR) || record.instance_variable_set(IVAR, new)
       end
 
       attr_reader :entries
 
-      def initialize(owner)
-        @owner = owner
+      def initialize
         @entries = []
-      end
-
-      def owned_by?(record)
-        @owner.equal?(record)
       end
 
       # Notes a transition (once, however many copies of the noting callback run)
       def note(transition)
+        prune
         entries << Entry.new(transition) unless entry_for(transition)
+      end
+
+      # Drops the transitions core refused (Transition#refusal) whose state
+      # change is not in place.  A transition still running has no refusal
+      # (each perform clears it), so this never drops one a save happening
+      # inside its callbacks would otherwise miss.
+      def prune
+        entries.reject! { |entry| entry.transition.refusal && !entry.transition.persisted? }
       end
 
       # Drops a refused transition, unless its state change is in place after all
@@ -75,9 +77,13 @@ module StateMachines
         entries.map(&:transition).find { |transition| transition.machine.name == machine_name && transition.persisted? }
       end
 
-      # The rows are committed: their entries are done
-      def committed
-        entries.reject! { |entry| entry.written? && !entry.written_row_lost? }
+      # A commit of the record's transaction.  The rows are final only once
+      # no transaction is left open: a savepoint inside a non-joinable
+      # transaction runs the record's commit callbacks at its release, while
+      # the transaction around it can still roll the rows back.
+      def committed(transaction_open)
+        prune
+        entries.reject! { |entry| entry.written? && !entry.written_row_lost? } unless transaction_open
       end
 
       # Everything noted described the record as it was in memory; a reload
@@ -91,7 +97,6 @@ module StateMachines
       end
 
       def marshal_load(_)
-        @owner = nil
         @entries = []
       end
 

@@ -472,6 +472,54 @@ class ARLateParent
   end
 end
 
+class ARModelDupInitStateTransition < ApplicationRecord
+  belongs_to :ar_model_dup_init, class_name: 'ARModelDupInit'
+end
+
+# Starts itself (without saving) from after_initialize while the class flag
+# is set, so a dup transitions during its own initialization
+class ARModelDupInit < ApplicationRecord
+  class_attribute :start_on_initialize, default: false
+
+  state_machine :state, initial: :waiting do
+    audit_trail
+
+    event :start do
+      transition waiting: :started
+    end
+  end
+
+  after_initialize { start(false) if self.class.start_on_initialize && can_start? }
+end
+
+class ARModelRaisingBeforeStateTransition < ApplicationRecord
+  belongs_to :ar_model_raising_before, class_name: 'ARModelRaisingBefore'
+end
+
+# explode's before callback (declared after audit_trail, so the transition is
+# noted first) raises; start runs explode from its own before callback and
+# rescues the error
+class ARModelRaisingBefore < ApplicationRecord
+  state_machine :state, initial: :waiting do
+    audit_trail
+
+    before_transition(on: :explode) { raise ArgumentError, 'refused by raising' }
+    before_transition(on: :start) do |record, _transition|
+      record.explode
+    rescue ArgumentError
+      nil
+    end
+
+    event :start do
+      transition waiting: :started
+    end
+
+    event :explode do
+      transition waiting: :exploded
+    end
+  end
+end
+
 class ARModelDescendant < ARModel
 end
 
@@ -625,7 +673,7 @@ module AuditTrailTestSchema
       %w[ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext ARModelWithValidatedContext
          ARModelWithoutNamespaceColumn ARModelConditionalAuditTrail ARModelWithValidatedInitialContext
          ARModelConditionalRetry ARModelHaltingCallbacks ARModelNestedSave ARModelNestedEvent
-         ARModelWithRequiredContext ARLateParent
+         ARModelWithRequiredContext ARLateParent ARModelDupInit ARModelRaisingBefore
          ARFirstModelWithPolymorphicStateTransition ARSecondModelWithPolymorphicStateTransition].each do |name|
         create_model_table(name.constantize)
       end
@@ -656,7 +704,8 @@ module AuditTrailTestSchema
 
       create_model_tables
       %w[ARModel ARModelNoInitial ARModelConditionalAuditTrail ARModelConditionalRetry
-         ARModelHaltingCallbacks ARModelDeferred ARModelNestedSave ARModelNestedEvent ARLateParent].each do |name|
+         ARModelHaltingCallbacks ARModelDeferred ARModelNestedSave ARModelNestedEvent ARLateParent
+         ARModelDupInit ARModelRaisingBefore].each do |name|
         create_transition_table(name, :state)
       end
       create_required_context_transition_table

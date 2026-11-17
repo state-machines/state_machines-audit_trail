@@ -758,6 +758,67 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_equal 'waiting', ARModelWithRequiredContext.find(target.id).state
   end
 
+  def test_clone_of_a_loaded_record_shares_its_journal
+    target = ARModel.find(ARModel.create!.id)
+    copy = target.clone
+    copy.start(false)
+    target.save!
+
+    assert_equal 'started', ARModel.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
+  def test_reloading_a_clone_keeps_the_journal_of_the_other
+    target = ARModel.create!
+    copy = target.clone
+    target.start(false)
+    copy.reload
+    target.save!
+
+    assert_equal 'started', ARModel.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
+  def test_dup_transitioning_during_its_initialization_keeps_its_own_journal
+    target = ARModelDupInit.create!
+    begin
+      ARModelDupInit.start_on_initialize = true
+      copy = target.dup
+    ensure
+      ARModelDupInit.start_on_initialize = false
+    end
+    target.save!
+    copy.save!
+
+    assert_equal 'waiting', ARModelDupInit.find(target.id).state
+    assert_equal [[nil, nil, 'waiting']], audit_rows(target)
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(copy)
+  end
+
+  def test_rows_committed_by_a_non_joinable_transaction_leave_the_journal
+    target = ARModel.create!
+    ARModel.transaction(joinable: false) { target.start! }
+    target.stop(false)
+
+    assert_equal(%w[stop], StateMachines::AuditTrail::Journal.of(target).entries.map { |entry| entry.transition.event.to_s })
+  end
+
+  def test_transition_whose_before_callback_raises_leaves_the_journal
+    target = ARModelRaisingBefore.create!
+
+    assert_raises(ArgumentError) { target.explode }
+    assert_empty StateMachines::AuditTrail::Journal.of(target).entries
+  end
+
+  def test_rescued_raise_in_a_nested_event_keeps_the_outer_transition
+    target = ARModelRaisingBefore.create!
+    target.start!
+
+    assert_equal 'started', target.reload.state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+    assert_empty StateMachines::AuditTrail::Journal.of(target).entries
+  end
+
   def test_save_inside_a_refused_loopback_logs_nothing
     target = ARModelNestedSave.create!
 

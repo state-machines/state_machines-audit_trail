@@ -9,17 +9,19 @@ module StateMachines
     module Owner
       HOOKED = :@state_machines_audit_trail_hooked
 
-      # A reload replaces the in-memory record, transitions included, with the
-      # database's version; a dup is a new record with none of the original's
-      # transitions (a clone shares its attributes, and so its journal)
+      # A dup is a new record with new attributes, and a reload gives the
+      # reloaded instance new attributes: both detach onto a fresh journal.  A
+      # clone shares the attributes, and so keeps sharing the journal (also
+      # when the other copy is reloaded).
       module Record
         def reload(*)
-          super.tap { Journal.of(self).clear }
+          super.tap { Journal.detach(self) }
         end
 
+        # Before super: the dup's after_initialize callbacks run inside it
         def initialize_dup(other)
+          Journal.detach(self)
           super
-          remove_instance_variable(Journal::IVAR) if instance_variable_defined?(Journal::IVAR)
         end
       end
 
@@ -33,15 +35,33 @@ module StateMachines
 
           owner_class.instance_variable_set(HOOKED, true)
           owner_class.prepend(Record)
+          # Created with the record, so a clone made before any transition shares it
+          owner_class.after_initialize { |record| Journal.of(record) }
           owner_class.after_create { |record| Owner.created(record) if Owner.acting?(record, owner_class) }
           owner_class.after_save { |record| Owner.saved(record) if Owner.acting?(record, owner_class) }
-          owner_class.after_commit do |record|
-            Journal.of(record).committed(record.class.with_connection(&:transaction_open?)) if Owner.acting?(record, owner_class)
-          end
+          owner_class.after_commit { |record| Owner.committed(record) if Owner.acting?(record, owner_class) }
         end
 
         def acting?(record, installer)
           record.class.ancestors.reverse_each.find { |ancestor| ancestor.instance_variable_get(HOOKED) }.equal?(installer)
+        end
+
+        # The record's commit callbacks also run when a savepoint inside a
+        # non-joinable transaction is released, while that transaction can
+        # still roll its rows back: the entries then wait for the transaction
+        # still open to commit (a rollback drops the callback and leaves them
+        # lost).  The public after-commit hooks treat a non-joinable
+        # transaction as absent, so this registers on the connection's
+        # current transaction itself.
+        def committed(record)
+          journal = Journal.of(record)
+          record.class.with_connection do |connection|
+            if connection.transaction_open?
+              connection.current_transaction.after_commit { committed(record) }
+            else
+              journal.prune(false)
+            end
+          end
         end
 
         # The null => initial entry of each audited machine, on every create
@@ -62,7 +82,7 @@ module StateMachines
         # may not write that state at all.
         def saved(record)
           journal = Journal.of(record)
-          journal.prune
+          journal.prune(true)
           transaction = record.class.with_connection(&:current_transaction)
 
           journal.entries.dup.each do |entry|

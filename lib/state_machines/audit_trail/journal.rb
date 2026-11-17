@@ -6,10 +6,11 @@ module StateMachines
     # audited machine) whose audit row is not committed yet, in the order the
     # transitions started.
     #
-    # It holds live transitions of the in-memory record: a +clone+ (which
-    # shares the record's attributes) shares it, a +dup+ (a new record) starts
-    # its own (see Owner), and a Marshal round trip (e.g. a cache write) drops
-    # it.
+    # It holds live transitions of the in-memory record's attributes: it is
+    # created with the record (Owner's after_initialize), so a +clone+ (which
+    # shares the attributes) shares it, while a +dup+ (a new record) and a
+    # +reload+ (new attributes for that instance only) detach onto a fresh one
+    # (see Owner::Record).  A Marshal round trip (e.g. a cache write) drops it.
     class Journal
       # Instance variable holding a record's Journal
       IVAR = :@state_machines_audit_trail
@@ -41,10 +42,27 @@ module StateMachines
         def written_row_lost?
           written? && written_in.state.rolledback?
         end
+
+        # Whether its row is committed for good: written in a real transaction
+        # that committed, or in a savepoint that was released when no
+        # transaction is left open (a rollback of an enclosing transaction
+        # would have rolled the savepoint back too)
+        def written_row_final?(transaction_open)
+          return false unless written?
+
+          state = written_in.state
+          state.fully_committed? || (state.committed? && !transaction_open)
+        end
       end
 
       def self.of(record)
         record.instance_variable_get(IVAR) || record.instance_variable_set(IVAR, new)
+      end
+
+      # Gives the record a fresh journal, leaving the one it shared (with a
+      # clone) to the other copies
+      def self.detach(record)
+        record.instance_variable_set(IVAR, new)
       end
 
       attr_reader :entries
@@ -55,16 +73,20 @@ module StateMachines
 
       # Notes a transition (once, however many copies of the noting callback run)
       def note(transition)
-        prune
+        prune(transition.object.class.with_connection(&:transaction_open?))
         entries << Entry.new(transition) unless entry_for(transition)
       end
 
-      # Drops the transitions core refused (Transition#refusal) whose state
-      # change is not in place.  A transition still running has no refusal
-      # (each perform clears it), so this never drops one a save happening
-      # inside its callbacks would otherwise miss.
-      def prune
-        entries.reject! { |entry| entry.transition.refusal && !entry.transition.persisted? }
+      # Drops the entries that are done: rows committed for good, and
+      # transitions core refused (Transition#refusal) whose state change is
+      # not in place.  A transition still running has no refusal (each perform
+      # clears it), so this never drops one that a save happening inside its
+      # callbacks would otherwise miss; one refused by an exception is
+      # forgotten as the exception leaves its collection (see CollectionGuard).
+      def prune(transaction_open)
+        entries.reject! do |entry|
+          entry.written_row_final?(transaction_open) || (entry.transition.refusal && !entry.transition.persisted?)
+        end
       end
 
       # Drops a refused transition, unless its state change is in place after all
@@ -75,21 +97,6 @@ module StateMachines
       # The first transition of the named machine whose state change is in place
       def first_persisted(machine_name)
         entries.map(&:transition).find { |transition| transition.machine.name == machine_name && transition.persisted? }
-      end
-
-      # A commit of the record's transaction.  The rows are final only once
-      # no transaction is left open: a savepoint inside a non-joinable
-      # transaction runs the record's commit callbacks at its release, while
-      # the transaction around it can still roll the rows back.
-      def committed(transaction_open)
-        prune
-        entries.reject! { |entry| entry.written? && !entry.written_row_lost? } unless transaction_open
-      end
-
-      # Everything noted described the record as it was in memory; a reload
-      # replaced that with the database's version
-      def clear
-        entries.clear
       end
 
       def marshal_dump

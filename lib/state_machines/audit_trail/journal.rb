@@ -90,11 +90,14 @@ module StateMachines
       # A copy of a set (dup, clone - e.g. LazyIndexedAttributeSet#map and
       # #deep_dup on Rails main build theirs with +dup+) is a different set:
       # it must not inherit the journal through its copied instance variables.
-      # Prepended to ActiveModel::AttributeSet.
+      # It gets a fresh, empty one instead, before any freeze: ActiveRecord
+      # freezes the clone it gives a destroyed record, and the record's
+      # entries must still be able to follow it there (and back, if the
+      # destroy rolls back).  Prepended to ActiveModel::AttributeSet.
       module CopyGuard
         def initialize_copy(source)
           super
-          remove_instance_variable(IVAR) if instance_variable_defined?(IVAR)
+          instance_variable_set(IVAR, Journal.new) if instance_variable_defined?(IVAR)
         end
       end
 

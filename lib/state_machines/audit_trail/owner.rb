@@ -15,6 +15,11 @@ module StateMachines
       # becomes (shared), clone (shared), dup / new / find (a new one) - need
       # nothing: the journal is the set's.
       module Record
+        def reload(*)
+          from = @attributes
+          super.tap { Journal.carry_running(self, from, @attributes) }
+        end
+
         def freeze
           from = @attributes
           super.tap { Journal.migrate(self, from, @attributes) }
@@ -22,11 +27,15 @@ module StateMachines
 
         private
 
-        # ActiveModel::Dirty: changes_applied (during a save, before the
-        # after_save callbacks) and clear_changes_information
+        # ActiveModel::Dirty: changes_applied (during a save, right after the
+        # row is written and before the after_create / after_save callbacks)
+        # and clear_changes_information
         def forget_attribute_assignments
           from = @attributes
-          super.tap { Journal.migrate(self, from, @attributes) }
+          super.tap do
+            Journal.migrate(self, from, @attributes)
+            Journal.of(self).snapshot
+          end
         end
 
         # ActiveRecord::Transactions, when a rolled back save restores the record
@@ -83,30 +92,25 @@ module StateMachines
         end
 
         # Writes, inside the save's database transaction, a row for every noted
-        # transition whose state change is in place (Transition#persisted?) and
-        # whose row is not written yet.  A row written in a transaction that
-        # rolled back (a savepoint, or one enclosing the save) is written again
-        # only if this save writes its machine's state again; a savepoint
-        # rollback does not restore the in-memory record, so a save after it
-        # may not write that state at all.
+        # transition whose state change was in place (Transition#persisted?)
+        # when this save wrote the record's row, and whose audit row is not
+        # written yet (see Journal::Entry#disposition).
         def saved(record)
           journal = Journal.of(record)
           journal.prune(true)
           transaction = record.class.with_connection(&:current_transaction)
 
           journal.entries.dup.each do |entry|
-            transition = entry.transition
-            next unless transition.persisted?
-            next if entry.written? && !entry.written_row_lost?
-
-            if entry.written_row_lost? && !record.saved_change_to_attribute?(transition.machine.attribute)
+            case entry.disposition(record)
+            when :write
+              entry.transition.machine.send(:audit_write, record, entry.transition)
+              entry.written_in = transaction
+            when :drop
               journal.entries.delete(entry)
-              next
             end
-
-            transition.machine.send(:audit_write, record, transition)
-            entry.written_in = transaction
           end
+        ensure
+          journal&.entries&.each { |entry| entry.in_saved_row = false }
         end
       end
     end

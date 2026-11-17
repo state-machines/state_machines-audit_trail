@@ -63,7 +63,9 @@ the two are written together or not at all:
 - A transition whose action is `save` (an event method, `state_event` on create or update) is logged by that save. A
   transition generated during the save (e.g. one machine's callback firing another machine's event) is logged by it too.
 - A transition committed without a save (a machine with `action: nil`, `event(false)`) is logged by the next save of the
-  record, which is the one that writes its state.
+  record, which is the one that writes its state. So is one made during a save after the row is written (from an
+  `after_create` or `after_save`). A transition reloading the record while it runs (`with_lock`, `lock!` in its
+  callbacks) is still logged by its save.
 - A transition that is refused, or rolled back, is never logged; once its state change is in place, nothing that runs
   afterwards (a transition's `after:`, an `after_transition` or `around_transition` halting or raising) can drop it.
 - A new record logs `nil => initial state` when it is created, followed by the transitions it went through before or

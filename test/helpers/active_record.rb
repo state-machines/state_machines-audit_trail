@@ -539,6 +539,55 @@ class ARModelStartOnFind < ApplicationRecord
   after_find { start(false) if self.class.start_on_find && can_start? }
 end
 
+class ARModelLockingStateTransition < ApplicationRecord
+  belongs_to :ar_model_locking, class_name: 'ARModelLocking'
+end
+
+# Each event reloads the record (pessimistic lock) after audit_trail noted the
+# transition: from an around callback, with with_lock or lock!, or from a
+# before callback
+class ARModelLocking < ApplicationRecord
+  state_machine :state, initial: :waiting do
+    audit_trail
+
+    around_transition(on: :start_with_lock) { |record, _transition, block| record.with_lock { block.call } }
+    around_transition(on: :start_lock_around) do |record, _transition, block|
+      record.lock!
+      block.call
+    end
+    before_transition(on: :start_lock_before) { |record, _transition| record.lock! }
+    before_transition(on: :start_with_lock_before) { |record, _transition| record.with_lock { nil } }
+
+    %i[start_with_lock start_lock_around start_lock_before start_with_lock_before].each do |name|
+      event(name) { transition waiting: :started }
+    end
+  end
+end
+
+class ARModelLateStartStateTransition < ApplicationRecord
+  belongs_to :ar_model_late_start, class_name: 'ARModelLateStart'
+end
+
+# Starts (without saving) after the row is written: from after_create, or from
+# an after_save declared before audit_trail's while the class flag is set
+class ARModelLateStart < ApplicationRecord
+  class_attribute :start_after_save, default: false
+
+  after_save { start(false) if self.class.start_after_save && can_start? }
+
+  state_machine :state, initial: :waiting do
+    audit_trail
+
+    event :start do
+      transition waiting: :started
+    end
+  end
+
+  attr_accessor :start_after_create
+
+  after_create { start(false) if start_after_create }
+end
+
 class ARModelDescendant < ARModel
 end
 
@@ -693,7 +742,7 @@ module AuditTrailTestSchema
          ARModelWithoutNamespaceColumn ARModelConditionalAuditTrail ARModelWithValidatedInitialContext
          ARModelConditionalRetry ARModelHaltingCallbacks ARModelNestedSave ARModelNestedEvent
          ARModelWithRequiredContext ARLateParent ARModelDupInit ARModelRaisingBefore
-         ARModelStartOnFind
+         ARModelStartOnFind ARModelLocking ARModelLateStart
          ARFirstModelWithPolymorphicStateTransition ARSecondModelWithPolymorphicStateTransition].each do |name|
         create_model_table(name.constantize)
       end
@@ -725,7 +774,8 @@ module AuditTrailTestSchema
       create_model_tables
       %w[ARModel ARModelNoInitial ARModelConditionalAuditTrail ARModelConditionalRetry
          ARModelHaltingCallbacks ARModelDeferred ARModelNestedSave ARModelNestedEvent ARLateParent
-         ARModelDupInit ARModelRaisingBefore ARModelStartOnFind].each do |name|
+         ARModelDupInit ARModelRaisingBefore ARModelStartOnFind
+         ARModelLocking ARModelLateStart].each do |name|
         create_transition_table(name, :state)
       end
       create_required_context_transition_table

@@ -861,6 +861,58 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
   end
 
+  %i[start_with_lock start_lock_around start_lock_before start_with_lock_before].each do |event|
+    define_method(:"test_#{event}_reloading_the_record_mid_transition_keeps_it_audited") do
+      target = ARModelLocking.create!
+      target.public_send(:"#{event}!")
+
+      assert_equal 'started', ARModelLocking.find(target.id).state
+      assert_equal [[nil, nil, 'waiting'], [event.to_s, 'waiting', 'started']], audit_rows(target)
+    end
+  end
+
+  def test_reload_drops_completed_unsaved_transitions_but_not_running_ones
+    target = ARModelLocking.create!
+    target.start_lock_before(false)
+    target.reload
+    target.save!
+
+    assert_equal 'waiting', ARModelLocking.find(target.id).state
+    assert_equal [[nil, nil, 'waiting']], audit_rows(target)
+  end
+
+  def test_transition_after_the_create_is_written_by_the_next_save
+    target = ARModelLateStart.new(start_after_create: true)
+    target.save!
+
+    assert_equal 'started', target.state
+    assert_equal 'waiting', ARModelLateStart.find(target.id).state
+    assert_equal [[nil, nil, 'waiting']], audit_rows(target)
+
+    target.save!
+
+    assert_equal 'started', ARModelLateStart.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
+  def test_transition_in_an_earlier_after_save_is_written_by_the_next_save
+    target = ARModelLateStart.create!
+    begin
+      ARModelLateStart.start_after_save = true
+      target.save!
+    ensure
+      ARModelLateStart.start_after_save = false
+    end
+
+    assert_equal 'waiting', ARModelLateStart.find(target.id).state
+    assert_equal [[nil, nil, 'waiting']], audit_rows(target)
+
+    target.save!
+
+    assert_equal 'started', ARModelLateStart.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
   def test_save_inside_a_refused_loopback_logs_nothing
     target = ARModelNestedSave.create!
 

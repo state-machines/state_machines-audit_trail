@@ -31,7 +31,11 @@ module StateMachines
       # written in (nil until written)
       class Entry
         attr_reader :transition
+        # The database transaction its row was last written in
         attr_accessor :written_in
+        # Whether its state change was in place when the save under way wrote
+        # the record's row (see Journal#snapshot)
+        attr_accessor :in_saved_row
 
         def initialize(transition)
           @transition = transition
@@ -39,6 +43,21 @@ module StateMachines
 
         def written?
           !written_in.nil?
+        end
+
+        # What the save of +record+ under way does with it: :write its row,
+        # :drop it, or leave it (nil).  Only a state change in place when the
+        # save wrote the record's row is in that row.  A row written in a
+        # transaction that rolled back (a savepoint, or one enclosing the save)
+        # is written again only if this save writes its machine's state again:
+        # a savepoint rollback does not restore the in-memory record, so a save
+        # after it may not write that state at all.
+        def disposition(record)
+          return unless in_saved_row && transition.persisted?
+          return :write unless written?
+          return unless written_row_lost?
+
+          record.saved_change_to_attribute?(transition.machine.attribute) ? :write : :drop
         end
 
         # Whether the transaction its row was written in rolled back (a
@@ -91,10 +110,36 @@ module StateMachines
         for_attributes(to).entries.concat(moving)
       end
 
+      # A reload gave the record the attribute set a fresh find built, which
+      # discards the state changes it had not saved.  A transition still
+      # running on the record (noted, neither in place nor refused yet - e.g.
+      # one whose around callback takes a lock with +with_lock+ / +lock!+)
+      # carries on in the new set, and is followed there.
+      def self.carry_running(record, from, to)
+        return if from.nil? || from.equal?(to)
+
+        old = from.instance_variable_get(IVAR)
+        return unless old
+
+        running, staying = old.entries.partition do |entry|
+          transition = entry.transition
+          transition.object.equal?(record) && !transition.persisted? && transition.refusal.nil?
+        end
+        old.entries.replace(staying)
+        for_attributes(to).entries.concat(running)
+      end
+
       attr_reader :entries
 
       def initialize
         @entries = []
+      end
+
+      # The record's row has just been written (changes_applied): only the
+      # state changes in place now are in it.  A transition made later in the
+      # same save (an after_create, an earlier after_save) waits for the next.
+      def snapshot
+        entries.each { |entry| entry.in_saved_row = entry.transition.persisted? }
       end
 
       # Notes a transition (once, however many copies of the noting callback run)

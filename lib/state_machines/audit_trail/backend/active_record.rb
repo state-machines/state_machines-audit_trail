@@ -4,6 +4,21 @@ require 'state_machines-activerecord'
 
 module StateMachines
   module AuditTrail
+    # Raised (from the owner's save, and so from +save+, +save!+ and the event)
+    # when an audit row cannot be written.  Unlike ActiveRecord::RecordInvalid,
+    # which +save+ turns into +false+, it propagates: the owner's row is already
+    # written by then, and only a raise rolls back an enclosing transaction the
+    # save joined.
+    class RecordNotAudited < ::ActiveRecord::RecordNotSaved
+      # The audit record that failed its validations
+      attr_reader :audit_record
+
+      def initialize(owner, audit_record)
+        @audit_record = audit_record
+        super("Failed to write the audit trail: #{audit_record.errors.full_messages.to_sentence}", owner)
+      end
+    end
+
     class Backend
       class ActiveRecord < StateMachines::AuditTrail::Backend
         def initialize(transition_class, owner_class, options = {})
@@ -22,9 +37,9 @@ module StateMachines
         # save would insert with the stale fields.  A loaded association is
         # reset so it reads the new row.
         #
-        # A record that fails its validations fails the owner: the error is
-        # reported on the owner and ActiveRecord::RecordInvalid raised for it,
-        # which rolls back the owner's save (whose +save+ then returns false).
+        # A record that fails its validations fails the owner's save: the error
+        # is reported on the owner and RecordNotAudited raised, rolling back
+        # the save and any transaction enclosing it.
         def persist(object, fields)
           fields.delete(:namespace) unless namespace_column_present?(object)
 
@@ -34,7 +49,7 @@ module StateMachines
           association.set_inverse_instance(record)
           unless record.save
             object.errors.add(@association, :invalid)
-            raise ::ActiveRecord::RecordInvalid, object
+            raise RecordNotAudited.new(object, record)
           end
 
           association.reset if association.loaded?

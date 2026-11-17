@@ -380,6 +380,52 @@ class ARModelNestedSave < ApplicationRecord
   end
 end
 
+class ARModelNestedEventStateTransition < ApplicationRecord
+  belongs_to :ar_model_nested_event, class_name: 'ARModelNestedEvent'
+end
+
+# Starting first runs a loopback event of the same machine from a before
+# callback, so one transition is noted while another is still in flight.
+class ARModelNestedEvent < ApplicationRecord
+  state_machine :state, initial: :waiting do
+    audit_trail
+
+    before_transition(on: :start) { |record, _transition| record.wait! }
+
+    event :start do
+      transition waiting: :started
+    end
+
+    event :wait do
+      transition waiting: :waiting
+    end
+  end
+end
+
+class ARModelSharedAuditTransition < ApplicationRecord
+  belongs_to :ar_model_shared, class_name: 'ARModelShared'
+end
+
+# Two machines logging to one audit class; the phase machine has no action,
+# so its transitions are written by the next save.
+class ARModelShared < ApplicationRecord
+  state_machine :state, initial: :waiting do
+    audit_trail class: ARModelSharedAuditTransition, initial: false
+
+    event :start do
+      transition waiting: :started
+    end
+  end
+
+  state_machine :phase, initial: :draft, action: nil do
+    audit_trail class: ARModelSharedAuditTransition, initial: false
+
+    event :advance do
+      transition draft: :final
+    end
+  end
+end
+
 class ARModelDescendant < ARModel
 end
 
@@ -532,7 +578,7 @@ module AuditTrailTestSchema
     def create_model_tables
       %w[ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext ARModelWithValidatedContext
          ARModelWithoutNamespaceColumn ARModelConditionalAuditTrail ARModelWithValidatedInitialContext
-         ARModelConditionalRetry ARModelHaltingCallbacks ARModelNestedSave
+         ARModelConditionalRetry ARModelHaltingCallbacks ARModelNestedSave ARModelNestedEvent
          ARFirstModelWithPolymorphicStateTransition ARSecondModelWithPolymorphicStateTransition].each do |name|
         create_model_table(name.constantize)
       end
@@ -542,6 +588,7 @@ module AuditTrailTestSchema
       create_model_table(ARModelWithContextBasedOnOtherField, false, :state, :other_field)
       create_model_table(ARModelAbortingFirstCreate, false, :state, :other_field)
       create_model_table(ARModelDeferred, false, :state, :phase)
+      create_model_table(ARModelShared, false, :state, :phase)
     end
 
     def create!
@@ -549,9 +596,10 @@ module AuditTrailTestSchema
 
       create_model_tables
       %w[ARModel ARModelNoInitial ARModelConditionalAuditTrail ARModelConditionalRetry
-         ARModelHaltingCallbacks ARModelDeferred ARModelNestedSave].each do |name|
+         ARModelHaltingCallbacks ARModelDeferred ARModelNestedSave ARModelNestedEvent].each do |name|
         create_transition_table(name, :state)
       end
+      create_transition_table('ARModelShared', :audit)
       create_transition_table('ARModelDeferred', :phase)
 
       create_transition_table('ARModelWithoutNamespaceColumn', :state, add_namespace: false)

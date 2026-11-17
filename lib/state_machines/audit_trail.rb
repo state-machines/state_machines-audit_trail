@@ -11,7 +11,8 @@ module StateMachines
 end
 
 require 'state_machines/audit_trail/version'
-require 'state_machines/audit_trail/trails'
+require 'state_machines/audit_trail/journal'
+require 'state_machines/audit_trail/owner'
 require 'state_machines/audit_trail/transition_auditing'
 require 'state_machines/audit_trail/backend'
 require 'state_machines/audit_trail/railtie' if defined?(Rails)

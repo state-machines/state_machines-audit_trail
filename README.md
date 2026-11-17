@@ -68,15 +68,19 @@ the two are written together or not at all:
   afterwards (a transition's `after:`, an `after_transition` or `around_transition` halting or raising) can drop it.
 - A new record logs `nil => initial state` when it is created, followed by the transitions it went through before or
   while being created: `Subscription.new.start!` logs `nil => waiting`, then `waiting => started`.
+- Entries are written in the order the transitions happened, across all the model's machines.
 - `:if` and `:context` are evaluated when the entry is written. A save that fails or is rolled back (including by an
-  enclosing transaction) takes its entries with it, and the next save that writes the state writes them again.
+  enclosing transaction or a savepoint) takes its entries with it, and the next save that writes the state again writes
+  them again. `reload` discards transitions not saved yet, along with the state they set.
 
 ### Failed audit writes
 
 The audit trail is the complete history of a model's state changes, so a state change is never saved without its audit
 entry. If the transition record cannot be written - a validation on your `StateTransition` model, a database constraint -
-the save fails and rolls back: a validation failure is reported on the owner object (under the transitions association),
-so `save` and the event return `false`, and `save!` and the bang event raise.
+the save raises `StateMachines::AuditTrail::RecordNotAudited` (an `ActiveRecord::RecordNotSaved`; `#record` is your
+model, `#audit_record` the invalid transition record), from `save`, `save!` and the event alike. The model's row has
+already been written by then, so the failure has to propagate: it rolls back the save and any transaction enclosing it,
+and the event's state change is rolled back with it.
 
 ## Upgrading from state_machine-audit_trail
 

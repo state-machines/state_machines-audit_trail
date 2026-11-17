@@ -441,10 +441,12 @@ class ActiveRecordBackendTest < Minitest::Test
   def test_invalid_audit_record_fails_and_rolls_back_the_transition
     target = ARModelWithValidatedContext.create!
 
-    refute target.start
+    error = assert_raises(StateMachines::AuditTrail::RecordNotAudited) { target.start }
+    assert_same target, error.record
+    assert_includes error.audit_record.errors[:context], "can't be blank"
     assert_equal 'waiting', target.state
     refute_empty target.errors[:ar_model_with_validated_context_state_transitions]
-    assert_raises(StateMachines::InvalidTransition) { target.start! }
+    assert_raises(StateMachines::AuditTrail::RecordNotAudited) { target.start! }
 
     assert_equal 'waiting', target.reload.state
     assert_equal 0, ARModelWithValidatedContextStateTransition.where(ar_model_with_validated_context_id: target.id).count
@@ -462,8 +464,7 @@ class ActiveRecordBackendTest < Minitest::Test
     target = ARModelWithValidatedContext.create!
 
     assert target.start(false)
-    refute target.save
-    refute_empty target.errors[:ar_model_with_validated_context_state_transitions]
+    assert_raises(StateMachines::AuditTrail::RecordNotAudited) { target.save }
 
     assert_equal 'waiting', target.reload.state
     assert_equal 0, ARModelWithValidatedContextStateTransition.where(ar_model_with_validated_context_id: target.id).count
@@ -633,6 +634,72 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
   end
 
+  def test_failed_audit_write_rolls_back_an_enclosing_transaction
+    target = ARModelWithValidatedContext.create!
+
+    assert_raises(StateMachines::AuditTrail::RecordNotAudited) do
+      ARModelWithValidatedContext.transaction { target.start }
+    end
+
+    assert_equal 'waiting', target.state
+    assert_equal 'waiting', ARModelWithValidatedContext.find(target.id).state
+    assert_equal 0, ARModelWithValidatedContextStateTransition.where(ar_model_with_validated_context_id: target.id).count
+  end
+
+  def test_failed_audit_write_on_create_rolls_back_an_enclosing_transaction
+    target = ARModelWithValidatedInitialContext.new
+    existing = ARModelWithValidatedInitialContext.count
+
+    assert_raises(StateMachines::AuditTrail::RecordNotAudited) do
+      ARModelWithValidatedInitialContext.transaction { target.save }
+    end
+
+    assert_predicate target, :new_record?
+    assert_equal existing, ARModelWithValidatedInitialContext.count
+  end
+
+  def test_nested_event_in_a_before_callback_keeps_the_outer_transition
+    target = ARModelNestedEvent.create!
+    target.start!
+
+    assert_equal 'started', target.reload.state
+    assert_equal [[nil, nil, 'waiting'], %w[wait waiting waiting], %w[start waiting started]], audit_rows(target)
+  end
+
+  def test_savepoint_rollback_does_not_rewrite_rows_that_survived
+    target = ARModel.create!
+    ARModel.transaction do
+      target.start!
+      ARModel.transaction(requires_new: true) do
+        target.stop!
+        raise ActiveRecord::Rollback
+      end
+    end
+    target.save!
+
+    assert_equal 'started', ARModel.find(target.id).state
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]], audit_rows(target)
+  end
+
+  def test_reload_discards_unsaved_transitions
+    target = ARModel.create!
+    target.start(false)
+    target.reload
+    target.save!
+
+    assert_equal 'waiting', target.reload.state
+    assert_equal [[nil, nil, 'waiting']], audit_rows(target)
+  end
+
+  def test_machines_sharing_an_audit_class_write_rows_in_transition_order
+    target = ARModelShared.create!
+    target.advance
+    target.start!
+
+    assert_equal [%w[advance draft final], %w[start waiting started]],
+                 audit_rows(target, ARModelSharedAuditTransition)
+  end
+
   def test_save_inside_a_refused_loopback_logs_nothing
     target = ARModelNestedSave.create!
 
@@ -655,7 +722,7 @@ class ActiveRecordBackendTest < Minitest::Test
   def test_failed_initial_audit_write_is_recovered_by_a_later_save
     target = ARModelWithValidatedInitialContext.new
 
-    refute target.save
+    assert_raises(StateMachines::AuditTrail::RecordNotAudited) { target.save }
     assert_predicate target, :new_record?
     refute_empty target.errors[:ar_model_with_validated_initial_context_state_transitions]
     assert_equal 0, ARModelWithValidatedInitialContextStateTransition.count

@@ -10,32 +10,27 @@
 # == When an audit is written
 #
 # An audit row is written by the owner save that writes the state change it
-# records, inside that save's database transaction, so the two land together
-# or not at all:
+# records, inside that save's database transaction (see Owner):
 #
 # * audit_trail registers a before_transition that notes every transition
-#   started on the record.  Before callbacks run on every path that changes
-#   state, including the preview a validation runs for a transition generated
-#   mid-save (whose around callbacks only run after the save).
-# * The owner's +after_save+ writes each noted transition whose state change
-#   is in place (Transition#persisted?): the transition the save is the action
-#   of, one generated during the save, and any committed earlier without a save
-#   (a machine without an action, <tt>event(false)</tt>).  A transition refused
-#   before its state change, or rolled back, is never persisted, so no
-#   callback halting or raising - before or after the change - can make the
-#   trail disagree with the state saved.
-# * The null => initial entry of a new record is written from the owner's
-#   +after_create+, on every create attempt, from the state the record had
-#   before its first transition.  A rolled back attempt takes its rows with it
-#   and leaves the record new, so +:if+ and +:context+ are evaluated for the
-#   attempt that writes them.
+#   started on the record in its Journal, in order across machines.  Before
+#   callbacks run on every path that changes state, including the preview a
+#   validation runs for a transition generated mid-save.
+# * The owner's +after_save+ writes a row for every noted transition whose
+#   state change is in place (Transition#persisted?), whichever machine it
+#   belongs to and whether or not that save was its action.  A refused or
+#   rolled back transition never is, so nothing halting or raising before or
+#   after the change can make the trail disagree with the saved state.
+# * The owner's +after_create+ writes each machine's null => initial entry,
+#   from the state before its first persisted transition.
+# * A row that cannot be written fails the save with RecordNotAudited (an
+#   ActiveRecord::RecordNotSaved), which rolls back the save - and any
+#   transaction enclosing it - instead of returning false from a save whose
+#   UPDATE an enclosing transaction would still commit.
 #
 module StateMachines
   module AuditTrail
     module TransitionAuditing
-      # Per-owner-class names of the machines whose owner callbacks are installed
-      HOOKED = :@state_machines_audit_trail_hooked
-
       # Hook for audit_trail inside a a state_machine declaration.
       #
       # options:
@@ -62,9 +57,12 @@ module StateMachines
 
         # The transition's machine, not this one: a clone in a subclass also
         # carries this callback, and audits with its own backend
-        before_transition { |object, transition| transition.machine.send(:audit_note, object, transition) }
+        before_transition { |object, transition| Journal.of(object).note(transition) }
+        # Best effort: keeps the journal from collecting refused transitions
+        # (correctness rests on Transition#persisted?, not on this running)
+        after_failure { |object, transition| Journal.of(object).forget(transition) }
 
-        install_audit_owner_callbacks
+        Owner.install(owner_class)
       end
 
       # Public returns an instance of the class which does the actual audit trail logging
@@ -79,82 +77,25 @@ module StateMachines
 
       private
 
-      # The before callback: notes the transition for the save that writes it.
-      # Another copy of this callback (a parent's, cloned into a subclass's
-      # machine) may already have noted it.  An earlier attempt that never
-      # changed the state is over: an attempt runs to its outcome before the
-      # next on the same machine starts.
-      def audit_note(object, transition)
-        noted = audit_trail_of(object).noted
-        return if noted.any? { |earlier| earlier.equal?(transition) }
-
-        noted.select!(&:persisted?)
-        noted << transition
-      end
-
-      # Owner after_create: the null => initial entry.  The state before the
-      # first transition that changed it, else the state the record is
-      # created in.
-      def audit_owner_created(object)
+      # The null => initial entry: the state before this machine's first
+      # transition whose state change is in place, else the state the record
+      # is created in
+      def audit_initial(object)
         return unless @audit_trail_options[:initial] && !action.nil? && audit_loggable?(object)
 
-        first = audit_trail_of(object).noted.find(&:persisted?)
+        first = Journal.of(object).first_persisted(name)
         initial = first ? first.from : read(object, :state)
-        backend.log(object, Trails::InitialTransition.new(namespace: namespace, to: initial)) unless initial.nil?
+        backend.log(object, Journal::InitialTransition.new(namespace: namespace, to: initial)) unless initial.nil?
       end
 
-      # Owner after_save: every noted transition whose state change this save
-      # writes, oldest first, once per database transaction.
-      def audit_owner_saved(object)
-        trail = audit_trail_of(object)
-        pending = trail.noted.select { |transition| transition.persisted? && !trail.written?(transition) }
-        pending.each do |transition|
-          backend.log(object, transition) if audit_loggable?(object, transition)
-          trail.written << transition
-        end
-      end
-
-      # Owner after_commit: the written transitions are recorded for good
-      def audit_owner_committed(object)
-        trail = audit_trail_of(object)
-        trail.noted.reject! { |transition| trail.written?(transition) }
-        trail.written.clear
-      end
-
-      # Owner after_rollback: the rows went with the transaction; a transition
-      # still in place is written again by the save that writes its state
-      def audit_owner_rolled_back(object)
-        audit_trail_of(object).written.clear
+      def audit_write(object, transition)
+        backend.log(object, transition) if audit_loggable?(object, transition)
       end
 
       # The :if option, given the transition's event arguments (none for the initial entry)
       def audit_loggable?(object, transition = nil)
         condition = @audit_trail_options[:if]
         condition.nil? || evaluate_method_with_event_args(object, condition, transition&.args || [])
-      end
-
-      def audit_trail_of(object)
-        Trails.of(object)[name]
-      end
-
-      # One set of owner callbacks per machine name and class hierarchy: each
-      # dispatches to the machine the record's class has under that name, so a
-      # subclass redefining (and re-auditing) the machine is not audited twice.
-      def install_audit_owner_callbacks
-        machine_name = name
-        return if owner_class.ancestors.any? { |ancestor| ancestor.instance_variable_get(HOOKED)&.include?(machine_name) }
-
-        hooked = owner_class.instance_variable_get(HOOKED) || owner_class.instance_variable_set(HOOKED, [])
-        hooked << machine_name
-
-        dispatch = lambda do |object, hook|
-          machine = object.class.state_machines[machine_name]
-          machine.send(hook, object) if machine.audit_trail?
-        end
-        owner_class.after_create { |object| dispatch.call(object, :audit_owner_created) }
-        owner_class.after_save { |object| dispatch.call(object, :audit_owner_saved) }
-        owner_class.after_commit { |object| dispatch.call(object, :audit_owner_committed) }
-        owner_class.after_rollback { |object| dispatch.call(object, :audit_owner_rolled_back) }
       end
 
       def default_transition_class

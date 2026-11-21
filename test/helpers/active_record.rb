@@ -214,6 +214,29 @@ class ARModelWithValidatedContext < ApplicationRecord
   end
 end
 
+class ARModelRaisingContextStateTransition < ApplicationRecord
+  belongs_to :ar_model_raising_context, class_name: 'ARModelRaisingContext'
+end
+
+# Its context method raises context_error, when one is set
+class ARModelRaisingContext < ApplicationRecord
+  attr_accessor :context_error
+
+  state_machine :state, initial: :waiting do
+    audit_trail context: :context
+
+    event :start do
+      transition waiting: :started
+    end
+  end
+
+  def context
+    raise context_error if context_error
+
+    'Some context'
+  end
+end
+
 class ARModelAbortingFirstCreateStateTransition < ApplicationRecord
   belongs_to :ar_model_aborting_first_create, class_name: 'ARModelAbortingFirstCreate'
 end
@@ -855,7 +878,7 @@ module AuditTrailTestSchema
          ARModelConditionalRetry ARModelHaltingCallbacks ARModelNestedSave ARModelNestedEvent
          ARModelWithRequiredContext ARLateParent ARModelDupInit ARModelRaisingBefore
          ARModelStartOnFind ARModelLocking ARModelLateStart ARModelReloadAfterSave ARModelReloadAfterCreate
-         ARModelNestedSavepointSave ARModelReloadAfterAudit ARModelNestedThenReload
+         ARModelNestedSavepointSave ARModelReloadAfterAudit ARModelNestedThenReload ARModelRaisingContext
          ARFirstModelWithPolymorphicStateTransition ARSecondModelWithPolymorphicStateTransition].each do |name|
         create_model_table(name.constantize)
       end
@@ -899,7 +922,8 @@ module AuditTrailTestSchema
       create_transition_table('ARModelWithoutNamespaceColumn', :state, add_namespace: false)
       create_transition_table('ARModelWithNamespace', :foo_state, add_context: false)
       %w[ARModelWithContext ARModelWithMultipleContext ARModelWithContextBasedOnOtherField
-         ARModelWithValidatedContext ARModelWithValidatedInitialContext ARModelAbortingFirstCreate].each do |name|
+         ARModelWithValidatedContext ARModelWithValidatedInitialContext ARModelAbortingFirstCreate
+         ARModelRaisingContext].each do |name|
         create_transition_table(name, :state, add_context: true)
       end
       create_transition_table('ARModelWithMultipleStateMachines', :first)

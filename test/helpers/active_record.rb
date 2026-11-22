@@ -1010,8 +1010,7 @@ module AuditTrailTestSchema
       create_transition_table('ARModelWithoutNamespaceColumn', :state, add_namespace: false)
       create_transition_table('ARModelWithNamespace', :foo_state, add_context: false)
       %w[ARModelWithContext ARModelWithMultipleContext ARModelWithContextBasedOnOtherField
-         ARModelWithValidatedContext ARModelWithValidatedInitialContext ARModelAbortingFirstCreate
-         ARModelRaisingContext].each do |name|
+         ARModelWithValidatedContext ARModelWithValidatedInitialContext ARModelAbortingFirstCreate ARModelRaisingContext].each do |name|
         create_transition_table(name, :state, add_context: true)
       end
       create_transition_table('ARModelWithMultipleStateMachines', :first)

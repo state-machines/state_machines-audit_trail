@@ -10,7 +10,8 @@ module StateMachines
     # written by then, and only a raise rolls back an enclosing transaction the
     # save joined.
     class RecordNotAudited < ::ActiveRecord::RecordNotSaved
-      # The audit record that failed its validations
+      # The audit record that failed its validations, or nil when the entry
+      # failed before its record was built (a :context method raising)
       attr_reader :audit_record
 
       def initialize(owner, audit_record, reason = audit_record.errors.full_messages.to_sentence)
@@ -33,6 +34,17 @@ module StateMachines
           # class's rows, not by the subclass's name
           assoc_options[:foreign_key] ||= owner_class.base_class.name.foreign_key unless assoc_options[:as]
           owner_class.has_many(@association, **assoc_options) unless owner_class.reflect_on_association(@association)
+        end
+
+        # WHY: save turns ActiveRecord::RecordInvalid into false, and its
+        # transaction block swallows ActiveRecord::Rollback, so either one raised
+        # by a :context method would let a transaction enclosing the save commit
+        # the state change without its row
+        def log(object, transition)
+          super
+        rescue ::ActiveRecord::RecordInvalid, ::ActiveRecord::Rollback => e
+          object.errors.add(@association, :invalid)
+          raise RecordNotAudited.new(object, nil, e.message)
         end
 
         # Inserts the audit record right away; the owner is always persisted by

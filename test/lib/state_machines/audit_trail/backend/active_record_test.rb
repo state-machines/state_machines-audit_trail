@@ -695,6 +695,71 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_equal existing, ARModelWithValidatedInitialContext.count
   end
 
+  def test_context_raising_record_invalid_rolls_back_an_enclosing_transaction
+    target = ARModelRaisingContext.create!
+    target.context_error = ActiveRecord::RecordInvalid
+
+    error = assert_raises(StateMachines::AuditTrail::RecordNotAudited) do
+      ARModelRaisingContext.transaction { target.start }
+    end
+
+    assert_same target, error.record
+    assert_nil error.audit_record
+    assert_kind_of ActiveRecord::RecordInvalid, error.cause
+    refute_empty target.errors[:ar_model_raising_context_state_transitions]
+    assert_equal 'waiting', ARModelRaisingContext.find(target.id).state
+    assert_equal [[nil, nil, 'waiting']], audit_rows(target)
+  end
+
+  def test_context_raising_rollback_rolls_back_an_enclosing_transaction
+    target = ARModelRaisingContext.create!
+    target.context_error = ActiveRecord::Rollback
+
+    error = assert_raises(StateMachines::AuditTrail::RecordNotAudited) do
+      ARModelRaisingContext.transaction { target.start }
+    end
+
+    assert_nil error.audit_record
+    assert_kind_of ActiveRecord::Rollback, error.cause
+    refute_empty target.errors[:ar_model_raising_context_state_transitions]
+    assert_equal 'waiting', ARModelRaisingContext.find(target.id).state
+    assert_equal [[nil, nil, 'waiting']], audit_rows(target)
+  end
+
+  def test_context_raising_without_an_enclosing_transaction_fails_the_event
+    target = ARModelRaisingContext.create!
+    target.context_error = ActiveRecord::RecordInvalid
+
+    assert_raises(StateMachines::AuditTrail::RecordNotAudited) { target.start }
+
+    assert_equal 'waiting', ARModelRaisingContext.find(target.id).state
+    assert_equal [[nil, nil, 'waiting']], audit_rows(target)
+  end
+
+  def test_context_raising_record_invalid_on_create_rolls_back_an_enclosing_transaction
+    target = ARModelRaisingContext.new(context_error: ActiveRecord::RecordInvalid)
+    existing = ARModelRaisingContext.count
+
+    assert_raises(StateMachines::AuditTrail::RecordNotAudited) do
+      ARModelRaisingContext.transaction { target.save }
+    end
+
+    assert_predicate target, :new_record?
+    assert_equal existing, ARModelRaisingContext.count
+  end
+
+  def test_context_raising_rollback_on_create_rolls_back_an_enclosing_transaction
+    target = ARModelRaisingContext.new(context_error: ActiveRecord::Rollback)
+    existing = ARModelRaisingContext.count
+
+    assert_raises(StateMachines::AuditTrail::RecordNotAudited) do
+      ARModelRaisingContext.transaction { target.save }
+    end
+
+    assert_predicate target, :new_record?
+    assert_equal existing, ARModelRaisingContext.count
+  end
+
   def test_nested_event_in_a_before_callback_keeps_the_outer_transition
     target = ARModelNestedEvent.create!
     target.start!

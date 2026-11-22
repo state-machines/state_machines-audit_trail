@@ -87,11 +87,12 @@ the two are written together or not at all:
 ### Failed audit writes
 
 The audit trail is the complete history of a model's state changes, so a state change is never saved without its audit
-entry. If the transition record cannot be written - a validation on your `StateTransition` model, a database constraint -
-the save raises `StateMachines::AuditTrail::RecordNotAudited` (an `ActiveRecord::RecordNotSaved`; `#record` is your
-model, `#audit_record` the invalid transition record), from `save`, `save!` and the event alike. The model's row has
-already been written by then, so the failure has to propagate: it rolls back the save and any transaction enclosing it,
-and the event's state change is rolled back with it.
+entry. If the transition record cannot be written - a validation on your `StateTransition` model, a database constraint,
+a `:context` method raising `ActiveRecord::RecordInvalid` or `ActiveRecord::Rollback` - the save raises
+`StateMachines::AuditTrail::RecordNotAudited` (an `ActiveRecord::RecordNotSaved`; `#record` is your model,
+`#audit_record` the invalid transition record, or nil when a `:context` method raised), from `save`, `save!` and the
+event alike. The model's row has already been written by then, so the failure has to propagate: it rolls back the save
+and any transaction enclosing it, and the event's state change is rolled back with it.
 
 ## Upgrading from state_machine-audit_trail
 
@@ -195,6 +196,30 @@ class Subscription < ActiveRecord::Base
 
 model = Subscription.first
 model.ignite!('arg1, 'arg2', 'arg3', user_id: 1)
+```
+
+#### Example 6 - Context for the initial entry
+The `nil => initial state` entry is written when the record is created, with no event, so `transition.args` is `nil`
+for it. A value chosen at creation, such as a date picked on a form, reaches it through an attribute set before `save`:
+
+```ruby
+class Subscription < ActiveRecord::Base
+  attr_accessor :starts_on
+
+  state_machine :state, initial: :start do
+    audit_trail context: :effective_date
+    ...
+
+  def effective_date(transition)
+    return starts_on || Date.current if transition.event.nil? # the initial entry
+
+    options = transition.args.last
+    (options[:starts_on] if options.is_a?(Hash)) || Date.current
+  end
+  ...
+
+model = Subscription.create!(starts_on: Date.new(2026, 9, 1)) # the initial entry stores 2026-09-01
+model.ignite!(starts_on: Date.new(2026, 10, 1))               # the ignite entry stores 2026-10-01
 ```
 
 ## About

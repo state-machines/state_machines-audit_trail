@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.1.0](https://github.com/state-machines/state_machines-audit_trail/compare/state_machines-audit_trail/v4.0.0...state_machines-audit_trail/v4.1.0) (2026-11-22)
+
+
+### Features
+
+* **audit_trail:** make transition columns optional ([#56](https://github.com/state-machines/state_machines-audit_trail/issues/56)) ([96aa661](https://github.com/state-machines/state_machines-audit_trail/commit/96aa6615eec0ff21338984b5fc840ec48bdc7e13))
+
+
+### Bug Fixes
+
+* **audit_trail:** fail saves on :context errors ([#55](https://github.com/state-machines/state_machines-audit_trail/issues/55)) ([555d788](https://github.com/state-machines/state_machines-audit_trail/commit/555d788bf42d3db542914515043e2aecf7413eb6)), closes [#53](https://github.com/state-machines/state_machines-audit_trail/issues/53)
+
 ## [4.0.0](https://github.com/state-machines/state_machines-audit_trail/compare/state_machines-audit_trail/v3.0.0...state_machines-audit_trail/v4.0.0) (2026-11-17)
 
 

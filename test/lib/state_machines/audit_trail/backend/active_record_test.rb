@@ -96,6 +96,43 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_equal 2, target.ar_model_without_namespace_column_state_transitions.count
   end
 
+  def test_transition_table_without_event_from_and_to_columns_logs_the_context
+    target = ARModelWithoutTransitionColumns.create!
+    target.start!
+
+    rows = ARModelWithoutTransitionColumnsStateTransition.where(ar_model_without_transition_columns_id: target.id)
+
+    assert_equal %w[waiting started], rows.order(:id).pluck(:context)
+  end
+
+  def test_transition_table_with_some_transition_columns_logs_those
+    target = ARModelWithOnlyToColumn.create!
+    target.start!
+
+    rows = ARModelWithOnlyToColumnStateTransition.where(ar_model_with_only_to_column_id: target.id)
+
+    assert_equal %w[waiting started], rows.order(:id).pluck(:to)
+  end
+
+  def test_explicit_context_is_not_dropped_when_it_matches_an_optional_field
+    target = ARModelWithUnwritableContext.new
+
+    error = assert_raises(ActiveModel::UnknownAttributeError) { target.save! }
+
+    assert_equal 'to', error.attribute
+    assert_predicate target, :new_record?
+  end
+
+  def test_transition_table_without_transition_columns_logs_through_their_writers
+    target = ARModelWithTransitionWriters.create!
+    target.start!
+
+    rows = ARModelWithTransitionWritersStateTransition.where(ar_model_with_transition_writers_id: target.id)
+
+    assert_equal [[nil, nil, 'waiting'], %w[start waiting started]],
+                 rows.order(:id).pluck(:event_name, :from_state, :to_state)
+  end
+
   def test_namespaced_state_machine_should_log_namespace
     target = ARModelWithNamespace.create!
 

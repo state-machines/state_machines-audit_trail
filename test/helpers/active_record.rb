@@ -29,6 +29,35 @@ class ARModelConditionalAuditTrailStateTransition < ApplicationRecord
   belongs_to :ar_model_conditional_audit_trail, class_name: 'ARModelConditionalAuditTrail'
 end
 
+class ARModelWithoutTransitionColumnsStateTransition < ApplicationRecord
+  belongs_to :ar_model_without_transition_columns, class_name: 'ARModelWithoutTransitionColumns'
+end
+
+class ARModelWithOnlyToColumnStateTransition < ApplicationRecord
+  belongs_to :ar_model_with_only_to_column, class_name: 'ARModelWithOnlyToColumn'
+end
+
+class ARModelWithUnwritableContextStateTransition < ApplicationRecord
+  belongs_to :ar_model_with_unwritable_context, class_name: 'ARModelWithUnwritableContext'
+end
+
+# Has no event, from or to column, and maps each through a writer
+class ARModelWithTransitionWritersStateTransition < ApplicationRecord
+  belongs_to :ar_model_with_transition_writers, class_name: 'ARModelWithTransitionWriters'
+
+  def event=(value)
+    self.event_name = value
+  end
+
+  def from=(value)
+    self.from_state = value
+  end
+
+  def to=(value)
+    self.to_state = value
+  end
+end
+
 class ARModelWithContextStateTransition < ApplicationRecord
   belongs_to :ar_model_with_context, class_name: 'ARModelWithContext'
 end
@@ -91,6 +120,50 @@ class ARModelWithoutNamespaceColumn < ApplicationRecord
 
     event :stop do
       transition started: :stopped
+    end
+  end
+end
+
+# Its transition table has no event, from or to column: the state goes in
+# the context column
+class ARModelWithoutTransitionColumns < ApplicationRecord
+  state_machine :state, initial: :waiting do
+    audit_trail context: :context
+
+    event :start do
+      transition waiting: :started
+    end
+  end
+
+  def context(transition)
+    transition.to
+  end
+end
+
+class ARModelWithOnlyToColumn < ApplicationRecord
+  state_machine :state, initial: :waiting do
+    audit_trail
+
+    event :start do
+      transition waiting: :started
+    end
+  end
+end
+
+class ARModelWithUnwritableContext < ApplicationRecord
+  state_machine :state, initial: :waiting do
+    audit_trail context: :to
+  end
+
+  def to = 'explicit context'
+end
+
+class ARModelWithTransitionWriters < ApplicationRecord
+  state_machine :state, initial: :waiting do
+    audit_trail
+
+    event :start do
+      transition waiting: :started
     end
   end
 end
@@ -875,6 +948,8 @@ module AuditTrailTestSchema
     def create_model_tables
       %w[ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext ARModelWithValidatedContext
          ARModelWithoutNamespaceColumn ARModelConditionalAuditTrail ARModelWithValidatedInitialContext
+         ARModelWithoutTransitionColumns ARModelWithOnlyToColumn ARModelWithTransitionWriters
+         ARModelWithUnwritableContext
          ARModelConditionalRetry ARModelHaltingCallbacks ARModelNestedSave ARModelNestedEvent
          ARModelWithRequiredContext ARLateParent ARModelDupInit ARModelRaisingBefore
          ARModelStartOnFind ARModelLocking ARModelLateStart ARModelReloadAfterSave ARModelReloadAfterCreate
@@ -904,6 +979,18 @@ module AuditTrailTestSchema
       end
     end
 
+    # Tables leaving out some or all of the event, from and to columns
+    def create_partial_transition_tables
+      { 'ARModelWithoutTransitionColumns' => %i[context], 'ARModelWithOnlyToColumn' => %i[to],
+        'ARModelWithUnwritableContext' => %i[event from],
+        'ARModelWithTransitionWriters' => %i[event_name from_state to_state] }.each do |owner_class_name, columns|
+        ActiveRecord::Base.connection.create_table("#{owner_class_name}StateTransition".tableize) do |t|
+          t.references owner_class_name.underscore, index: false
+          t.string(*columns)
+        end
+      end
+    end
+
     def create!
       return if @created
 
@@ -916,14 +1003,14 @@ module AuditTrailTestSchema
         create_transition_table(name, :state)
       end
       create_required_context_transition_table
+      create_partial_transition_tables
       create_transition_table('ARModelShared', :audit)
       create_transition_table('ARModelDeferred', :phase)
 
       create_transition_table('ARModelWithoutNamespaceColumn', :state, add_namespace: false)
       create_transition_table('ARModelWithNamespace', :foo_state, add_context: false)
       %w[ARModelWithContext ARModelWithMultipleContext ARModelWithContextBasedOnOtherField
-         ARModelWithValidatedContext ARModelWithValidatedInitialContext ARModelAbortingFirstCreate
-         ARModelRaisingContext].each do |name|
+         ARModelWithValidatedContext ARModelWithValidatedInitialContext ARModelAbortingFirstCreate ARModelRaisingContext].each do |name|
         create_transition_table(name, :state, add_context: true)
       end
       create_transition_table('ARModelWithMultipleStateMachines', :first)

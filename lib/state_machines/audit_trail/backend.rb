@@ -11,15 +11,7 @@ module StateMachines
       #   - transition: state machine transition object that state machine passes to after/before transition callbacks
       #
       def log(object, transition)
-        namespace = if transition.machine.presence
-                      # full transition object
-                      transition.machine.namespace
-                    else
-                      # initial state open struct
-                      transition.namespace
-                    end
-        fields = { namespace: namespace, event: transition.event&.to_s, from: transition.from,
-                   to: transition.to }.compact
+        fields = transition_fields(object, transition)
         [*options[:context]].each do |field|
           fields[field] = resolve_context(object, field, transition)
         end
@@ -48,6 +40,17 @@ module StateMachines
       end
 
       protected
+
+      def transition_fields(_object, transition)
+        namespace = if transition.machine.presence
+                      # full transition object
+                      transition.machine.namespace
+                    else
+                      # initial state open struct
+                      transition.namespace
+                    end
+        { namespace: namespace, event: transition.event&.to_s, from: transition.from, to: transition.to }.compact
+      end
 
       def persist(_object, _fields)
         raise 'Not implemented. Implement in a subclass.'

@@ -22,6 +22,9 @@ module StateMachines
 
     class Backend
       class ActiveRecord < StateMachines::AuditTrail::Backend
+        # Transition values a transition class may leave out
+        TRANSITION_FIELDS = %i[event from to].freeze
+
         def initialize(transition_class, owner_class, options = {})
           super
           @association = transition_class.to_s.tableize.split('/').last.to_sym
@@ -58,8 +61,6 @@ module StateMachines
         # RecordNotAudited raised, rolling back the save and any transaction
         # enclosing it.
         def persist(object, fields)
-          fields.delete(:namespace) unless namespace_column_present?(object)
-
           association = object.association(@association)
           # Let ActiveRecord manage the timestamp for us so it does the right thing with regards to timezones.
           record = association.klass.new(association.scope.scope_for_create.merge(fields.stringify_keys))
@@ -80,11 +81,25 @@ module StateMachines
           record
         end
 
+        protected
+
+        # Filter only built-in values; explicitly configured context must still
+        # be assigned so a missing attribute or writer raises as usual.
+        def transition_fields(object, transition)
+          fields = super
+          klass = object.association(@association).klass
+          fields.delete(:namespace) unless klass.column_names.include?('namespace')
+          TRANSITION_FIELDS.each { |field| fields.delete(field) unless writable?(klass, field) }
+          fields
+        end
+
         private
 
-        # Does the namespace column exist on the transition table for the provided object?
-        def namespace_column_present?(object)
-          object.class.reflect_on_association(@association).klass.column_names.include?('namespace')
+        # WHY: a writer counts as well as an attribute, since a table without
+        # the column may map the value through one, such as +to=+ setting a
+        # status column
+        def writable?(klass, field)
+          klass.has_attribute?(field) || klass.method_defined?("#{field}=")
         end
       end
     end

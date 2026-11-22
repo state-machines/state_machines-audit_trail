@@ -46,6 +46,13 @@ rails generate state_machines:audit_trail Subscription state
 
 will generate the `SubscriptionStateTransition` model and an accompanying migration.
 
+Its `namespace`, `event`, `from` and `to` columns are optional: drop any of them from the table and that value is not
+written. A transition class that defines `event=`, `from=` or `to=` without the column receives the value through that
+writer instead. Fill a table of your own shape through
+[`:context`](#context---storing-additional-attribute-or-method-values), with methods that take the transition
+(Example 5) where the value comes from it, such as the state it went to. Every explicitly configured `:context`
+field still needs a corresponding attribute or writer on the transition class.
+
 ### Configure `audit_trail` in your `state_machine`:
 
 ```ruby

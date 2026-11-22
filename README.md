@@ -190,6 +190,30 @@ model = Subscription.first
 model.ignite!('arg1, 'arg2', 'arg3', user_id: 1)
 ```
 
+#### Example 6 - Context for the initial entry
+The `nil => initial state` entry is written when the record is created, with no event, so `transition.args` is `nil`
+for it. A value chosen at creation, such as a date picked on a form, reaches it through an attribute set before `save`:
+
+```ruby
+class Subscription < ActiveRecord::Base
+  attr_accessor :starts_on
+
+  state_machine :state, initial: :start do
+    audit_trail context: :effective_date
+    ...
+
+  def effective_date(transition)
+    return starts_on || Date.current if transition.event.nil? # the initial entry
+
+    options = transition.args.last
+    (options[:starts_on] if options.is_a?(Hash)) || Date.current
+  end
+  ...
+
+model = Subscription.create!(starts_on: Date.new(2026, 9, 1)) # the initial entry stores 2026-09-01
+model.ignite!(starts_on: Date.new(2026, 10, 1))               # the ignite entry stores 2026-10-01
+```
+
 ## About
 
 ### Maintainers

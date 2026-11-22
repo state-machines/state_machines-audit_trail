@@ -114,6 +114,15 @@ class ActiveRecordBackendTest < Minitest::Test
     assert_equal %w[waiting started], rows.order(:id).pluck(:to)
   end
 
+  def test_explicit_context_is_not_dropped_when_it_matches_an_optional_field
+    target = ARModelWithUnwritableContext.new
+
+    error = assert_raises(ActiveModel::UnknownAttributeError) { target.save! }
+
+    assert_equal 'to', error.attribute
+    assert_predicate target, :new_record?
+  end
+
   def test_transition_table_without_transition_columns_logs_through_their_writers
     target = ARModelWithTransitionWriters.create!
     target.start!

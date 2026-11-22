@@ -49,10 +49,7 @@ module StateMachines
         # RecordNotAudited raised, rolling back the save and any transaction
         # enclosing it.
         def persist(object, fields)
-          fields.delete(:namespace) unless namespace_column_present?(object)
-
           association = object.association(@association)
-          TRANSITION_FIELDS.each { |field| fields.delete(field) unless writable?(association.klass, field) }
           # Let ActiveRecord manage the timestamp for us so it does the right thing with regards to timezones.
           record = association.klass.new(association.scope.scope_for_create.merge(fields.stringify_keys))
           association.set_inverse_instance(record)
@@ -72,12 +69,19 @@ module StateMachines
           record
         end
 
-        private
+        protected
 
-        # Does the namespace column exist on the transition table for the provided object?
-        def namespace_column_present?(object)
-          object.class.reflect_on_association(@association).klass.column_names.include?('namespace')
+        # Filter only built-in values; explicitly configured context must still
+        # be assigned so a missing attribute or writer raises as usual.
+        def transition_fields(object, transition)
+          fields = super
+          klass = object.association(@association).klass
+          fields.delete(:namespace) unless klass.column_names.include?('namespace')
+          TRANSITION_FIELDS.each { |field| fields.delete(field) unless writable?(klass, field) }
+          fields
         end
+
+        private
 
         # WHY: a writer counts as well as an attribute, since a table without
         # the column may map the value through one, such as +to=+ setting a

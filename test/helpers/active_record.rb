@@ -37,6 +37,10 @@ class ARModelWithOnlyToColumnStateTransition < ApplicationRecord
   belongs_to :ar_model_with_only_to_column, class_name: 'ARModelWithOnlyToColumn'
 end
 
+class ARModelWithUnwritableContextStateTransition < ApplicationRecord
+  belongs_to :ar_model_with_unwritable_context, class_name: 'ARModelWithUnwritableContext'
+end
+
 # Has no event, from or to column, and maps each through a writer
 class ARModelWithTransitionWritersStateTransition < ApplicationRecord
   belongs_to :ar_model_with_transition_writers, class_name: 'ARModelWithTransitionWriters'
@@ -144,6 +148,14 @@ class ARModelWithOnlyToColumn < ApplicationRecord
       transition waiting: :started
     end
   end
+end
+
+class ARModelWithUnwritableContext < ApplicationRecord
+  state_machine :state, initial: :waiting do
+    audit_trail context: :to
+  end
+
+  def to = 'explicit context'
 end
 
 class ARModelWithTransitionWriters < ApplicationRecord
@@ -914,6 +926,7 @@ module AuditTrailTestSchema
       %w[ARModel ARModelNoInitial ARModelWithContext ARModelWithMultipleContext ARModelWithValidatedContext
          ARModelWithoutNamespaceColumn ARModelConditionalAuditTrail ARModelWithValidatedInitialContext
          ARModelWithoutTransitionColumns ARModelWithOnlyToColumn ARModelWithTransitionWriters
+         ARModelWithUnwritableContext
          ARModelConditionalRetry ARModelHaltingCallbacks ARModelNestedSave ARModelNestedEvent
          ARModelWithRequiredContext ARLateParent ARModelDupInit ARModelRaisingBefore
          ARModelStartOnFind ARModelLocking ARModelLateStart ARModelReloadAfterSave ARModelReloadAfterCreate
@@ -946,6 +959,7 @@ module AuditTrailTestSchema
     # Tables leaving out some or all of the event, from and to columns
     def create_partial_transition_tables
       { 'ARModelWithoutTransitionColumns' => %i[context], 'ARModelWithOnlyToColumn' => %i[to],
+        'ARModelWithUnwritableContext' => %i[event from],
         'ARModelWithTransitionWriters' => %i[event_name from_state to_state] }.each do |owner_class_name, columns|
         ActiveRecord::Base.connection.create_table("#{owner_class_name}StateTransition".tableize) do |t|
           t.references owner_class_name.underscore, index: false
